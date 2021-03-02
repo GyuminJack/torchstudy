@@ -2,6 +2,8 @@ from src.trainer import s2sTrainer
 from src.data import DeEndataset
 from torch.utils.data import DataLoader
 import torch
+import sys
+from src.seq2seq import Encoder, Decoder, seq2seq
 
 def get_datasets():
     train_data_paths = [
@@ -15,7 +17,7 @@ def get_datasets():
         ]
 
     test_data_paths = [
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/test2016.de",
+    "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/test2016.de",
         "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/test2016.en"
         ]
 
@@ -32,34 +34,70 @@ def get_datasets():
 
     return TrainDataset, ValidDataset, TestDataset
 
-
 if __name__ == "__main__" : 
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
-    TrainDataset, ValidDataset, TestDataset = get_datasets()
+    if sys.argv[1] == "train":
+        device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+        TrainDataset, ValidDataset, TestDataset = get_datasets()
+        
+        BATCH_SIZE = 128
+        TrainDataloader = DataLoader(TrainDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
+        ValidDataloader = DataLoader(ValidDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
+        TestDataloader = DataLoader(TestDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
+        
+        encoder_config = {
+            "emb_dim" : 1000,
+            "hid_dim" : 1000,
+            "lstm_layers" : 4,
+            "num_embeddings" : len(TrainDataset.src_vocab),
+            "pad_idx" : TrainDataset.src_vocab.pad_idx
+        }
     
-    BATCH_SIZE = 128
-    TrainDataloader = DataLoader(TrainDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
-    ValidDataloader = DataLoader(ValidDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
-    TestDataloader = DataLoader(TestDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
+        decoder_config = {
+            "emb_dim" : 1000,
+            "hid_dim" : 1000,
+            "lstm_layers" : 4,
+            "num_embeddings" : len(TrainDataset.dst_vocab),
+            "pad_idx" : TrainDataset.dst_vocab.pad_idx,
+            "output_dim" : len(TrainDataset.dst_vocab)
+        }
+
+        epoch = 100
+
+        trainer = s2sTrainer(encoder_config, decoder_config, device)
+        trainer.run(epoch, TrainDataloader, ValidDataloader)
     
-    encoder_config = {
-        "emb_dim" : 1000,
-        "hid_dim" : 1000,
-        "lstm_layers" : 4,
-        "num_embeddings" : len(TrainDataset.src_vocab),
-        "pad_idx" : TrainDataset.src_vocab.pad_idx
-    }
-   
-    decoder_config = {
-        "emb_dim" : 1000,
-        "hid_dim" : 1000,
-        "lstm_layers" : 4,
-        "num_embeddings" : len(TrainDataset.dst_vocab),
-        "pad_idx" : TrainDataset.dst_vocab.pad_idx,
-        "output_dim" : len(TrainDataset.dst_vocab)
-    }
+    elif sys.argv[1] == "live":
+        TrainDataset, _, _ = get_datasets()
 
-    epoch = 200
+        encoder_config = {
+            "emb_dim" : 1000,
+            "hid_dim" : 1000,
+            "lstm_layers" : 4,
+            "num_embeddings" : len(TrainDataset.src_vocab),
+            "pad_idx" : TrainDataset.src_vocab.pad_idx
+        }
+    
+        decoder_config = {
+            "emb_dim" : 1000,
+            "hid_dim" : 1000,
+            "lstm_layers" : 4,
+            "num_embeddings" : len(TrainDataset.dst_vocab),
+            "pad_idx" : TrainDataset.dst_vocab.pad_idx,
+            "output_dim" : len(TrainDataset.dst_vocab)
+        }
 
-    trainer = s2sTrainer(encoder_config, decoder_config, device)
-    trainer.run(epoch, TrainDataloader, ValidDataloader)
+        encoder = Encoder(**encoder_config)
+        decoder = Decoder(**decoder_config)
+        seq2seq = seq2seq(encoder, decoder)
+        seq2seq.load_state_dict(torch.load("./seq2seq-model.pt"), strict=False)
+        TrainDataset.dst_vocab.build_index_dict()
+        while True:
+            src = input("Input : ")
+            test_sample = torch.Tensor([TrainDataset.src_vocab.stoi(src.lower(), option="seq2seq", reverse=True)]).long()
+            print(test_sample)
+            test_sample = torch.reshape(test_sample, (-1,1))
+            pred, pred_probs = seq2seq.predict(test_sample)
+            print(pred)
+            print(TrainDataset.dst_vocab.itos(pred))
+
+            

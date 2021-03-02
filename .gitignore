@@ -1,11 +1,8 @@
 # my-ignore
 0_datas/
 .data/
-<<<<<<< HEAD
 *.pt
 checkpoint/
-=======
->>>>>>> 5a7fda032d3ffd46d74089c5328441aa4226ae64
 ppt/
 *.pptx
 1week/datas

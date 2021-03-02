@@ -69,9 +69,9 @@ class Vocabs:
                 return [self.stoi(i) for i in sentence]
 
     def itos(self, indices):
-        if type(indices[0]) == int:
+        if type(indices) == int:
             return " ".join([self.index_dict[index] for index in indices if self.index_dict[index] != "<PAD>"])
-        elif type(indices) == list:
+        elif type(indices[0]) == list:
             return [self.itos(i) for i in indices]
 
     def init_vectors(self, emb_dim):

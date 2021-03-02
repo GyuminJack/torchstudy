@@ -38,7 +38,6 @@ class DeEndataset(Dataset):
     def __getitem__(self, idx):     
         raw_de = linecache.getline(self.de_path, idx + 1).replace("\n","")
         raw_en = linecache.getline(self.en_path, idx + 1).replace("\n","")
-
         order = -1
         de_tensor_ = torch.tensor([self.src_vocab.vocab_dict[token] for token in self.src_vocab.tokenizer(raw_de.lower())[::order]]).long()
         en_tensor_ = torch.tensor([self.dst_vocab.vocab_dict[token] for token in self.dst_vocab.tokenizer(raw_en.lower())]).long()
@@ -54,12 +53,12 @@ class DeEndataset(Dataset):
             de_len.append(len(de_batch[-1]))
 
         sorted_de_batch = sorted(de_batch, key=lambda x :len(x), reverse = True)
-        sorted_de_len = torch.Tensor(sorted(de_len, reverse=True)).long()
+        sorted_de_len = torch.flip(torch.Tensor(sorted(de_len, reverse=True)).long(), dims=[0])
 
-        padded_sorted_de_batch = pad_sequence(sorted_de_batch, padding_value=pad_idx)
+        padded_sorted_de_batch = torch.flip(pad_sequence(sorted_de_batch, padding_value=pad_idx), dims=[0])
         padded_en_batch = pad_sequence(en_batch, padding_value=pad_idx)
     
-        return (padded_sorted_de_batch, sorted_de_len), padded_en_batch
+        return padded_sorted_de_batch, padded_en_batch
 
 if __name__ == "__main__":
     train_data_paths = [
@@ -88,7 +87,6 @@ if __name__ == "__main__":
     TestDataset = DeEndataset(test_data_paths)
     TestDataloader = DataLoader(TestDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
     
-    for dataloader in [TrainDataloader, ValidDataloader, TestDataloader]:
-        for item in dataloader:
-            print(item)
-            break
+    for i in TrainDataloader:
+        print(i[1].size())
+        break

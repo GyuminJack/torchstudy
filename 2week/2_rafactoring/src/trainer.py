@@ -17,16 +17,16 @@ class s2sTrainer:
         self.encoder = Encoder(**encoder_conf)
         self.decoder = Decoder(**decoder_conf)
         self.seq2seq = seq2seq(self.encoder, self.decoder).to(device)
+                
+        for name, param in self.seq2seq.named_parameters():
+            torch.nn.init.uniform_(param.data, -0.08, 0.08)
 
     def set_optimizer(self, optimizer = None):
         if optimizer is None:
             self.optimizer = optim.Adam(self.seq2seq.parameters())
         else:
             self.optimizer = optimizer(self.seq2seq.parameters())
-
-    def init_weights(self):
-        self.seq2seq.init_weights()
-
+    
     def set_loss(self, loss_fn = None, ignore_index = 0):
         if loss_fn is None:
             self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index = ignore_index).to(self.device)
@@ -38,18 +38,17 @@ class s2sTrainer:
         clip = 2
         epoch_loss = 0
         for i, (src, trg) in enumerate(train_iterator):
-            src, src_len = src[0], src[1]
+            # src, src_len = src[0], src[1]
 
             src = src.to(self.device)
             trg = trg.to(self.device)
 
             self.optimizer.zero_grad()
-            output = self.seq2seq(src, src_len, trg).to(self.device)
+            output = self.seq2seq(src, trg).to(self.device)
             
             output_dim = output.shape[-1]
             output = output[1:].view(-1, output_dim)
-            trg = trg[1:].view(-1)
-            
+            trg = trg[1:].reshape(-1)
             loss = self.loss_fn(output, trg)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.seq2seq.parameters(), clip)
@@ -62,10 +61,9 @@ class s2sTrainer:
         epoch_loss = 0
         with torch.no_grad():
             for i, (src, trg) in enumerate(valid_iterator):
-                src, src_len = src[0], src[1]
                 src = src.to(self.device)
                 trg = trg.to(self.device)
-                output = self.seq2seq(src, src_len, trg).to(self.device)
+                output = self.seq2seq(src, trg).to(self.device)
                 output_dim = output.shape[-1]
                 output = output[1:].view(-1, output_dim)
                 trg = trg[1:].view(-1)
@@ -74,14 +72,12 @@ class s2sTrainer:
         return epoch_loss / len(valid_iterator)
     
     def run(self, epochs, train_iterator, valid_iterator):
-        self.init_weights()
-        
         if self.optimizer == None:
             self.set_optimizer()
         
         if self.loss_fn == None:
             self.set_loss()
-
+        
         best_valid_loss = float('inf')
         for epoch in range(epochs):
             start_time = time.time()
@@ -92,7 +88,7 @@ class s2sTrainer:
             
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
-                torch.save(self.seq2seq.state_dict(), 'seq2seq-model.pt')
+                torch.save(self.seq2seq.state_dict(), f'seq2seq-model.pt')
             
             print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
             print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
