@@ -29,6 +29,9 @@ class DeEndataset(Dataset):
         self.src_vocab.update_vocabs_to_file(self.de_path)
         self.dst_vocab.update_vocabs_to_file(self.en_path)
 
+        self.src_vocab.set_most_common_dict(size = 6000)
+        self.dst_vocab.set_most_common_dict(size = 6000)
+
         with open(self.de_path, "r") as f:
             self._total_data = len(f.readlines()) - 1
 
@@ -52,13 +55,15 @@ class DeEndataset(Dataset):
             en_batch.append(torch.cat([torch.tensor([sos_idx]), en_item, torch.tensor([eos_idx])], dim=0))
             de_len.append(len(de_batch[-1]))
 
-        sorted_de_batch = sorted(de_batch, key=lambda x :len(x), reverse = True)
-        sorted_de_len = torch.flip(torch.Tensor(sorted(de_len, reverse=True)).long(), dims=[0])
-
-        padded_sorted_de_batch = torch.flip(pad_sequence(sorted_de_batch, padding_value=pad_idx), dims=[0])
+        sorted_v, sort_i = torch.Tensor(de_len).sort(descending = True)
+        padded_de_batch = pad_sequence(de_batch, padding_value=pad_idx)
         padded_en_batch = pad_sequence(en_batch, padding_value=pad_idx)
-    
-        return padded_sorted_de_batch, padded_en_batch
+
+        padded_sorted_de_batch = padded_de_batch.T[sort_i].T
+        padded_sorted_en_batch = padded_en_batch.T[sort_i].T
+
+        sorted_de_len = sorted_v.long()
+        return (padded_sorted_de_batch, sorted_de_len), padded_sorted_en_batch
 
 if __name__ == "__main__":
     train_data_paths = [
@@ -88,5 +93,9 @@ if __name__ == "__main__":
     TestDataloader = DataLoader(TestDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
     
     for i in TrainDataloader:
+        # print(i[0][0].size())
+        # print(i[0][1].size(), i[0][1].tolist())
+        print(i[0][0])
+        print(i[0][1])
         print(i[1].size())
         break

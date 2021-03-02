@@ -1,6 +1,6 @@
 from konlpy.tag import Mecab
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 
 class Vocabs:
@@ -27,15 +27,31 @@ class Vocabs:
     def __len__(self):
         return len(self.vocab_dict)
 
+    def set_most_common_dict(self, size):
+        new_dict = defaultdict(lambda: self.unk_idx)
+        new_dict["<PAD>"] = self.pad_idx
+        new_dict["<UNK>"] = self.unk_idx
+        new_dict["<SOS>"] = self.sos_idx
+        new_dict["<EOS>"] = self.eos_idx
+        self._index = 4
+        for k, v in Counter(self.count_dict).most_common(size):
+            new_dict[k] = self._index
+            self._index += 1
+        self.vocab_dict = new_dict
+
     def update_vocabs_to_file(self, filepath):
+        count_dict = defaultdict(lambda: 1)
         with open(filepath, encoding="utf8") as f:
             for string_ in f:
                 for token in self.tokenizer(string_.replace("\n","").lower()):
                     if token in self.vocab_dict:
+                        count_dict[token] += 1
                         pass
                     else:
+                        count_dict[token] = 1
                         self.vocab_dict[token] = self._index
                         self._index += 1
+        self.count_dict = count_dict
 
     def __len__(self):
         return len(self.vocab_dict)

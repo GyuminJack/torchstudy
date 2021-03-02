@@ -1,47 +1,57 @@
 import torch
 
+# Encoder pack input : torch.Size([36, 128, 1000]) seq * batch * emb_size
+# Decoder LSTM input : torch.Size([1, 128, 1000]) target_id * batch * emb_size
+# Decoder hidden_state input : torch.Size([4, 128, 1000]) n_layers * batch * hid_size
+# Decoder cell_state input : torch.Size([4, 128, 1000]) n_layers * batch * cell_size
 
 class Encoder(torch.nn.Module):
-    def __init__(self, emb_dim, hid_dim, num_embeddings, lstm_layers, pad_idx=0):
+    def __init__(self, input_dim, emb_dim, hid_dim, n_layers, pad_idx = 0, dropout=0.5):
         super().__init__()
-        self.emb = torch.nn.Embedding(embedding_dim=emb_dim, num_embeddings=num_embeddings, padding_idx=pad_idx)
-        self.lstm = torch.nn.LSTM(emb_dim, hid_dim, lstm_layers)
+        
+        self.hid_dim = hid_dim
+        self.n_layers = n_layers
+        self.embedding = torch.nn.Embedding(input_dim, emb_dim)
+        self.rnn = torch.nn.LSTM(emb_dim, hid_dim, n_layers, dropout = dropout)
+        self.dropout = torch.nn.Dropout(dropout)
 
-    def forward(self, x):
-        embedded = self.emb(x)
-        output, (hidden, cell) = self.lstm(embedded)
-        return hidden, cell
-
-    def packed_forward(self, x, len_x):
-        embedded = self.emb(x) # batch, seq_len, emb_size
-        packed_embedded = torch.nn.utils.rnn.pack_padded_sequence(embedded, len_x.to('cpu'))
-        output, (hidden, cell) = self.lstm(packed_embedded)
-
-        # out : [ sequence_len, batch_size, num_direction * hidden_size ]. (batch_first = False)
-        # hidden : [ num_layer * num_direction, batch, hidden_size]
-        # cell : [ num_layer * num_direction, batch, hidden_size]
-        return hidden, cell
-    
-    def predict(self, x):
-        embedded = self.emb(x)
-        output, (hidden, cell) = self.lstm(embedded)
+    def forward(self, src, src_len):
+        #src = [src len, batch size]
+        embedded = self.dropout(self.embedding(src))
+        #embedded = [src len, batch size, emb dim]
+        
+        # embedded = [batch size,src len, emb dim]
+        # # Pack padded batch of sequences for RNN module
+        # print(f"Encoder pack input : {embedded.size()}")
+        packed_input = torch.nn.utils.rnn.pack_padded_sequence(embedded, src_len.tolist(), batch_first=False)
+        packed_output, (hidden, cell) = self.rnn(packed_input)
+        #outputs = [src len, batch size, hid dim * n directions]
+        #hidden = [n layers * n directions, batch size, hid dim]
+        #cell = [n layers * n directions, batch size, hid dim]
         return hidden, cell
 
 class Decoder(torch.nn.Module):
-    def __init__(self, emb_dim, hid_dim, num_embeddings, output_dim, lstm_layers, pad_idx=0):
+    def __init__(self, emb_dim, hid_dim, output_dim, n_layers, pad_idx=0, dropout=0.5):
         super().__init__()
-        self.emb = torch.nn.Embedding(embedding_dim=emb_dim, num_embeddings=num_embeddings, padding_idx=pad_idx)
-        self.lstm = torch.nn.LSTM(emb_dim, hid_dim, lstm_layers)
+        self.emb = torch.nn.Embedding(output_dim, emb_dim, padding_idx=pad_idx)
+        self.rnn = torch.nn.LSTM(emb_dim, hid_dim, n_layers, dropout=dropout)
         self.fc_out = torch.nn.Linear(hid_dim, output_dim)
         self.output_dim = output_dim
+        self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, x, encoder_hidden_state, encoder_cell_state):
         # 디코더에는 배치 하나가 들어오기 때문에 차원이 하나 축소되서 들어옴 -> 이걸 한차원 늘리려고 하는 작업
-        x = x.unsqueeze(0)
-        embedded = self.emb(x) # batch, seq_len, emb_size
+        if x.dim() == 2:
+            x = x
+        else:
+            x = x.unsqueeze(0)
+        embedded = self.dropout(self.emb(x)) # batch, seq_len, emb_size
         # encoder_hidden_state(input) : [num_layer * num_direction, batch, hidden_size ] 
 
-        output, (hidden, cell) = self.lstm(embedded, (encoder_hidden_state, encoder_cell_state))
+        # print(f"Decoder LSTM input : {embedded.size()}")
+        # print(f"Decoder hidden_state input : {encoder_hidden_state.size()}")
+        # print(f"Decoder cell_state input : {encoder_cell_state.size()}")
+        output, (hidden, cell) = self.rnn(embedded, (encoder_hidden_state, encoder_cell_state))
         # out : [ sequence_len, batch_size, num_direction * hidden_size ]. (batch_first = False)
         # hidden : [ num_layer * num_direction, batch, hidden_size]
         # cell : [ num_layer * num_direction, batch, hidden_size]
@@ -55,9 +65,9 @@ class seq2seq(torch.nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         
-    def forward(self, src, trg):
+    def forward(self, src, src_len, trg):
         
-        hidden, cell = self.encoder(src)
+        hidden, cell = self.encoder(src, src_len)
         
         batch_size = trg.shape[1]
         trg_len = trg.shape[0]

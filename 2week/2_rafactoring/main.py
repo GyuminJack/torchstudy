@@ -47,16 +47,15 @@ if __name__ == "__main__" :
         encoder_config = {
             "emb_dim" : 1000,
             "hid_dim" : 1000,
-            "lstm_layers" : 4,
-            "num_embeddings" : len(TrainDataset.src_vocab),
+            "n_layers" : 4,
+            "input_dim" : len(TrainDataset.src_vocab),
             "pad_idx" : TrainDataset.src_vocab.pad_idx
         }
     
         decoder_config = {
             "emb_dim" : 1000,
             "hid_dim" : 1000,
-            "lstm_layers" : 4,
-            "num_embeddings" : len(TrainDataset.dst_vocab),
+            "n_layers" : 4,
             "pad_idx" : TrainDataset.dst_vocab.pad_idx,
             "output_dim" : len(TrainDataset.dst_vocab)
         }
@@ -72,16 +71,15 @@ if __name__ == "__main__" :
         encoder_config = {
             "emb_dim" : 1000,
             "hid_dim" : 1000,
-            "lstm_layers" : 4,
-            "num_embeddings" : len(TrainDataset.src_vocab),
+            "n_layers" : 4,
+            "input_dim" : len(TrainDataset.src_vocab),
             "pad_idx" : TrainDataset.src_vocab.pad_idx
         }
     
         decoder_config = {
             "emb_dim" : 1000,
             "hid_dim" : 1000,
-            "lstm_layers" : 4,
-            "num_embeddings" : len(TrainDataset.dst_vocab),
+            "n_layers" : 4,
             "pad_idx" : TrainDataset.dst_vocab.pad_idx,
             "output_dim" : len(TrainDataset.dst_vocab)
         }

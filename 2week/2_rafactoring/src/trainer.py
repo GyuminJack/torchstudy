@@ -38,20 +38,23 @@ class s2sTrainer:
         clip = 2
         epoch_loss = 0
         for i, (src, trg) in enumerate(train_iterator):
-            # src, src_len = src[0], src[1]
+            src, src_len = src[0], src[1]
 
             src = src.to(self.device)
             trg = trg.to(self.device)
 
             self.optimizer.zero_grad()
-            output = self.seq2seq(src, trg).to(self.device)
+            output = self.seq2seq(src, src_len, trg).to(self.device)
             
             output_dim = output.shape[-1]
             output = output[1:].view(-1, output_dim)
             trg = trg[1:].reshape(-1)
+
             loss = self.loss_fn(output, trg)
             loss.backward()
+            
             torch.nn.utils.clip_grad_norm_(self.seq2seq.parameters(), clip)
+            
             self.optimizer.step()
             epoch_loss += loss.item()
         return epoch_loss / len(train_iterator)
@@ -61,13 +64,17 @@ class s2sTrainer:
         epoch_loss = 0
         with torch.no_grad():
             for i, (src, trg) in enumerate(valid_iterator):
+                src, src_len = src[0], src[1]
                 src = src.to(self.device)
                 trg = trg.to(self.device)
-                output = self.seq2seq(src, trg).to(self.device)
+                output = self.seq2seq(src, src_len, trg).to(self.device)
+                
                 output_dim = output.shape[-1]
                 output = output[1:].view(-1, output_dim)
-                trg = trg[1:].view(-1)
+                trg = trg[1:].reshape(-1)
+
                 loss = self.loss_fn(output, trg)
+                
                 epoch_loss += loss.item()
         return epoch_loss / len(valid_iterator)
     
@@ -98,15 +105,15 @@ if __name__ == "__main__":
     encoder_config = {
         "emb_dim" : 1000,
         "hid_dim" : 1000,
-        "lstm_layers" : 4,
+        "n_layers" : 4,
         "num_embeddings" : 100,
         "pad_idx" : 0 
     }
 
     decoder_config = {
-        "emb_dim" : 1000,
+        "input_dim" : 1000,
         "hid_dim" : 1000,
-        "lstm_layers" : 4,
+        "n_layers" : 4,
         "num_embeddings" : 100,
         "pad_idx" : 0 ,
         "output_dim" : 10
