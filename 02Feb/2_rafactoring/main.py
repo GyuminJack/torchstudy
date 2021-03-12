@@ -1,5 +1,5 @@
 from src.trainer import s2sTrainer
-from src.data import DeEndataset
+from src.data import DeEndataset, KoEndataset
 from torch.utils.data import DataLoader
 import torch
 import sys
@@ -34,10 +34,42 @@ def get_datasets():
 
     return TrainDataset, ValidDataset, TestDataset
 
+
+def get_en_ko_datesets():
+
+    train_data_paths = [
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.train.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.train.en"
+    ]
+
+    valid_data_paths = [
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.dev.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.dev.en"
+        ]
+
+    test_data_paths = [
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.test.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.test.en"
+        ]
+
+    TrainDataset = KoEndataset(train_data_paths)
+
+    ValidDataset = KoEndataset(valid_data_paths)
+    ValidDataset.src_vocab = TrainDataset.src_vocab
+    ValidDataset.dst_vocab = TrainDataset.dst_vocab
+    
+    TestDataset = KoEndataset(test_data_paths)
+    TestDataset.src_vocab = TestDataset.src_vocab
+    TestDataset.dst_vocab = TestDataset.dst_vocab
+
+    return TrainDataset, ValidDataset, TestDataset
+
+
+
 if __name__ == "__main__" : 
     if sys.argv[1] == "train":
         device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
-        TrainDataset, ValidDataset, TestDataset = get_datasets()
+        TrainDataset, ValidDataset, TestDataset = get_en_ko_datesets()
         
         BATCH_SIZE = 128
         TrainDataloader = DataLoader(TrainDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
@@ -66,7 +98,7 @@ if __name__ == "__main__" :
         trainer.run(epoch, TrainDataloader, ValidDataloader)
     
     elif sys.argv[1] == "live":
-        TrainDataset, _, _ = get_datasets()
+        TrainDataset, _, _ = get_en_ko_datesets()
 
         encoder_config = {
             "emb_dim" : 1000,

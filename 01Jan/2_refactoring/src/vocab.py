@@ -1,7 +1,15 @@
 from konlpy.tag import Mecab
 import numpy as np
 from collections import defaultdict, Counter
+from khaiii import KhaiiiApi
+api = KhaiiiApi()
 
+def khaiii_tokenizer(input_string):
+    token_list = []
+    for word in api.analyze(input_string):
+        for x in word.morphs:
+            token_list.append(x.lex)
+    return token_list
 
 class Vocabs:
     def __init__(self, tokenizer=None):
@@ -9,6 +17,8 @@ class Vocabs:
             self.tokenizer = lambda x: x.split(" ")
         elif tokenizer == "mecab":
             self.tokenizer = Mecab().morphs
+        elif tokenizer == 'khaiii':
+            self.tokenizer = khaiii_tokenizer
         else:
             self.tokenizer = tokenizer
 

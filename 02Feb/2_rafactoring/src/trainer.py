@@ -1,6 +1,6 @@
 import sys
-sys.path.append("/home/jack/torchstudy/1week/2_refactoring/src")
-sys.path.append("/home/jack/torchstudy/2week/2_rafactoring/src")
+sys.path.append("/home/jack/torchstudy/01Jan/2_refactoring/src")
+sys.path.append("/home/jack/torchstudy/02Feb/2_rafactoring/src")
 from seq2seq import Encoder, Decoder, seq2seq
 import torch
 import torch.optim as optim
@@ -95,7 +95,7 @@ class s2sTrainer:
             
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
-                torch.save(self.seq2seq.state_dict(), f'seq2seq-model.pt')
+                torch.save(self.seq2seq.state_dict(), f'seq2seq-model-ko-en.pt')
             
             print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
             print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')

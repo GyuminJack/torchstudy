@@ -1,6 +1,6 @@
 import sys
-sys.path.append("/home/jack/torchstudy/1week/2_refactoring/src")
-sys.path.append("/home/jack/torchstudy/2week/2_rafactoring/src")
+sys.path.append("/home/jack/torchstudy/01Jan/2_refactoring/src")
+sys.path.append("/home/jack/torchstudy/02Feb/2_rafactoring/src")
 from vocab import Vocabs
 from torch.utils.data import Dataset
 from torchtext.data.utils import get_tokenizer
@@ -17,7 +17,7 @@ class DeEndataset(Dataset):
         """
         data_paths = list of de path, en data path
         """
-        self.de_path = data_paths[0]
+        self.de_path = data_paths[0] 
         self.en_path = data_paths[1]
 
         self.de_tokenizer = get_tokenizer('spacy', language='de_core_news_sm')
@@ -65,31 +65,87 @@ class DeEndataset(Dataset):
         sorted_de_len = sorted_v.long()
         return (padded_sorted_de_batch, sorted_de_len), padded_sorted_en_batch
 
+class KoEndataset(Dataset):
+    """
+    https://github.com/pytorch/text/issues/130
+    """
+    def __init__(self, data_paths):
+        """
+        data_paths = list of de path, en data path
+        """
+        self.ko_path = data_paths[0]
+        self.en_path = data_paths[1]
+
+        self.ko_tokenizer = "khaiii" #khaiii 등록
+        self.en_tokenizer = get_tokenizer('spacy', language='en_core_web_sm')
+
+        self.src_vocab = Vocabs(self.ko_tokenizer)
+        self.dst_vocab = Vocabs(self.en_tokenizer)
+
+        self.src_vocab.update_vocabs_to_file(self.ko_path)
+        self.dst_vocab.update_vocabs_to_file(self.en_path)
+
+        self.src_vocab.set_most_common_dict(size = 6000)
+        self.dst_vocab.set_most_common_dict(size = 6000)
+
+        with open(self.ko_path, "r") as f:
+            self._total_data = len(f.readlines()) - 1
+
+    def __len__(self):
+        return self._total_data 
+
+    def __getitem__(self, idx):     
+        raw_ko = linecache.getline(self.ko_path, idx + 1).replace("\n","")
+        raw_en = linecache.getline(self.en_path, idx + 1).replace("\n","")
+        order = -1
+        ko_tensor_ = torch.tensor([self.src_vocab.vocab_dict[token] for token in self.src_vocab.tokenizer(raw_ko.lower())[::order]]).long() #khaiii 형식에 맞게
+        en_tensor_ = torch.tensor([self.dst_vocab.vocab_dict[token] for token in self.dst_vocab.tokenizer(raw_en.lower())]).long()
+        return (ko_tensor_, en_tensor_)
+    
+    @classmethod
+    def collate_fn(cls, data_batch, pad_idx=0, sos_idx=2, eos_idx=3):
+        ko_batch, en_batch = [], []
+        ko_len, en_len = [] , []
+        for (de_item, en_item) in data_batch:
+            ko_batch.append(torch.cat([torch.tensor([sos_idx]), ko_item, torch.tensor([eos_idx])], dim=0))
+            en_batch.append(torch.cat([torch.tensor([sos_idx]), en_item, torch.tensor([eos_idx])], dim=0))
+            ko_len.append(len(ko_batch[-1]))
+
+        sorted_v, sort_i = torch.Tensor(ko_len).sort(descending = True)
+        padded_ko_batch = pad_sequence(ko_batch, padding_value=pad_idx)
+        padded_en_batch = pad_sequence(en_batch, padding_value=pad_idx)
+
+        padded_sorted_ko_batch = padded_ko_batch.T[sort_i].T
+        padded_sorted_en_batch = padded_en_batch.T[sort_i].T
+
+        sorted_ko_len = sorted_v.long()
+        return (padded_sorted_ko_batch, sorted_ko_len), padded_sorted_en_batch
+
 if __name__ == "__main__":
     train_data_paths = [
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/train.de",
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/train.en"
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.train.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.train.en"
     ]
 
     valid_data_paths = [
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/val.de",
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/val.en"
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.dev.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.dev.en"
         ]
 
     test_data_paths = [
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/test2016.de",
-        "/home/jack/torchstudy/2week/1_refcode/.data/multi30k/test2016.en"
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.test.ko",
+        "/home/jack/torchstudy/02Feb/0_datas/korean-english-park.test.en"
         ]
 
     BATCH_SIZE = 3
     
-    TrainDataset = DeEndataset(train_data_paths)
+    TrainDataset = KoEndataset(train_data_paths)
     TrainDataloader = DataLoader(TrainDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
     
-    ValidDataset = DeEndataset(valid_data_paths)
+    ValidDataset = KoEndataset(valid_data_paths)
     ValidDataloader = DataLoader(ValidDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
     
-    TestDataset = DeEndataset(test_data_paths)
+    TestDataset = KoEndataset(test_data_paths)
     TestDataloader = DataLoader(TestDataset, batch_size = BATCH_SIZE, shuffle=True, collate_fn=DeEndataset.collate_fn)
     
     for i in TrainDataloader:
