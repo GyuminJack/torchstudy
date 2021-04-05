@@ -12,6 +12,7 @@ class Trainer:
         DEC_HID_DIM = train_config['emb_dim']
         device = train_config['device']
         pad_token = train_config['pad_idx']
+        self.TRG = train_config['TRG']
         ENC_DROPOUT = 0.5
         DEC_DROPOUT = 0.5
         MAX_OUT_DIM = 2
