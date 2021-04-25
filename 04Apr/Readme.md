@@ -8,6 +8,7 @@
 - Contiguous (C, Fotran)
 - Powerful Performance.... (BLEU > 50... in Mulit30K, only training 1epoch/10s)
 - Dot-product attention divided by root(d_k) (Simple Answer for Softmax overflow)
+- Xavier Initialize is very Useful (Bleu 30 to 50)
 
 #### Additional
 - Learning Rate Scheduler
