@@ -92,7 +92,8 @@ class Trainer:
         model.train()
         epoch_loss = 0
         for i, (src, trg) in enumerate(iterator):
-
+            src = src.to(self.device)
+            trg = trg.to(self.device)
             optimizer.zero_grad()            
             output, _ = model(src, trg[:,:-1])
                     
@@ -123,7 +124,8 @@ class Trainer:
         with torch.no_grad():
         
             for i, (src, trg) in enumerate(iterator):
-
+                src = src.to(self.device)
+                trg = trg.to(self.device)
                 output, _ = model(src, trg[:,:-1])
                 
                 #output = [batch size, trg len - 1, output dim]
