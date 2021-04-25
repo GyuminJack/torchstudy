@@ -27,8 +27,8 @@ class KoKodataset(Dataset):
         self.src_vocab.update_vocabs_to_file(self.ko1_path)
         self.dst_vocab.update_vocabs_to_file(self.ko2_path)
 
-        self.src_vocab.set_most_common_dict(size = 6000)
-        self.dst_vocab.set_most_common_dict(size = 6000)
+        self.src_vocab.set_most_common_dict(size = 10000)
+        self.dst_vocab.set_most_common_dict(size = 10000)
 
         with open(self.ko1_path, "r") as f:
             self._total_data = len(f.readlines()) - 1
@@ -39,7 +39,7 @@ class KoKodataset(Dataset):
     def __getitem__(self, idx):     
         raw_ko1 = linecache.getline(self.ko1_path, idx + 1).replace("\n","")
         raw_ko2 = linecache.getline(self.ko2_path, idx + 1).replace("\n","")
-        order = -1
+        order = 1
         ko1_tensor_ = torch.tensor([self.src_vocab.vocab_dict[token] for token in self.src_vocab.tokenizer(raw_ko1.lower())[::order]]).long() #khaiii 형식에 맞게
         ko2_tensor_ = torch.tensor([self.dst_vocab.vocab_dict[token] for token in self.dst_vocab.tokenizer(raw_ko2.lower())]).long()
         return (ko1_tensor_, ko2_tensor_)
@@ -66,13 +66,10 @@ class KoKodataset(Dataset):
     @classmethod
     def batch_collate_fn(cls, data_batch, pad_idx=0, sos_idx=2, eos_idx=3):
         ko1_batch, ko2_batch = [], []
-        ko1_len, ko2_len = [] , []
         for (ko1_item, ko2_item) in data_batch:
             ko1_batch.append(torch.cat([torch.tensor([sos_idx]), ko1_item, torch.tensor([eos_idx])], dim=0))
             ko2_batch.append(torch.cat([torch.tensor([sos_idx]), ko2_item, torch.tensor([eos_idx])], dim=0))
-            ko1_len.append(len(ko1_batch[-1]))
 
-        sorted_v, sort_i = torch.Tensor(ko1_len).sort(descending = True)
         padded_ko11_batch = pad_sequence(ko1_batch, padding_value=pad_idx, batch_first=True)
         padded_ko12_batch = pad_sequence(ko2_batch, padding_value=pad_idx, batch_first=True)
 

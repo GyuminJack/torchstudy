@@ -94,6 +94,7 @@ class Trainer:
         for i, (src, trg) in enumerate(iterator):
             src = src.to(self.device)
             trg = trg.to(self.device)
+            # print(trg)
             optimizer.zero_grad()            
             output, _ = model(src, trg[:,:-1])
                     
@@ -155,14 +156,14 @@ class Trainer:
 
         TRAINING_LR = []
 
-        schedule_opt = False
+        schedule_opt = True
         label_smooth_opt = False
 
         if schedule_opt:
             c_optimizer = torch.optim.Adam(model.parameters(), lr = 1,  betas = (0.9, 0.98), eps=10e-9)
-            c_scheduler = WarmupConstantSchedule(c_optimizer, d_model = 256, warmup_steps = 1000)
+            c_scheduler = WarmupConstantSchedule(c_optimizer, d_model = 256, warmup_steps = 4000)
         else:    
-            c_optimizer = torch.optim.Adam(model.parameters(), lr = 0.001,  betas = (0.9, 0.98), eps=10e-9)
+            c_optimizer = torch.optim.Adam(model.parameters(), lr = 0.0005,  betas = (0.9, 0.98), eps=10e-9)
         #     c_optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
             c_scheduler = None
 
@@ -182,5 +183,5 @@ class Trainer:
             if valid_loss < best_valid_loss:
                 best_valid_loss = valid_loss
             elif (epoch > 8) & (valid_loss > best_valid_loss) & (best_valid_loss < 1):
-                break
+                torch.save(model.state_dict(),'./model/2_best_model_{}.pt'.format(epoch))
             print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
