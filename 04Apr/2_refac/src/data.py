@@ -27,8 +27,8 @@ class KoKodataset(Dataset):
         self.src_vocab.update_vocabs_to_file(self.ko1_path)
         self.dst_vocab.update_vocabs_to_file(self.ko2_path)
 
-        self.src_vocab.set_most_common_dict(size = 10000)
-        self.dst_vocab.set_most_common_dict(size = 10000)
+        self.src_vocab.set_most_common_dict(size = 3000)
+        self.dst_vocab.set_most_common_dict(size = 3000)
 
         with open(self.ko1_path, "r") as f:
             self._total_data = len(f.readlines()) - 1

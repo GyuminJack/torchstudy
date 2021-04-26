@@ -52,7 +52,7 @@ class Vocabs:
         count_dict = defaultdict(lambda: 1)
         with open(filepath, encoding="utf8") as f:
             for string_ in f:
-                for token in self.tokenizer(string_.replace("\n","").lower()):
+                for token in self.tokenizer(string_.replace("\n","").strip().lower()):
                     if token in self.vocab_dict:
                         count_dict[token] += 1
                         pass

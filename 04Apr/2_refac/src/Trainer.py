@@ -57,6 +57,8 @@ class Trainer:
         TRG_PAD_IDX = configs['trg_pad_idx']
         self.device = configs['device']
 
+        self.epoch = configs['epochs']
+
         HID_DIM = 256
         ENC_LAYERS = 3
         DEC_LAYERS = 3
@@ -149,7 +151,7 @@ class Trainer:
             nn.init.xavier_uniform_(m.weight.data)
 
     def run(self, train_iterator, valid_iterator):
-        N_EPOCHS = 100
+        N_EPOCHS = self.epoch
         CLIP = 1
         model = self.model
         best_valid_loss = float('inf')
@@ -179,9 +181,10 @@ class Trainer:
             valid_loss = self.evaluate(model, valid_iterator, criterion)
             end_time = time.time()
             epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-            
-            if valid_loss < best_valid_loss:
+
+            # if (valid_loss < best_valid_loss) & (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
+            if (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
                 best_valid_loss = valid_loss
-            elif (epoch > 8) & (valid_loss > best_valid_loss) & (best_valid_loss < 1):
-                torch.save(model.state_dict(),'./model/2_best_model_{}.pt'.format(epoch))
+                torch.save(model.state_dict(),'./model/3_best_model_{}.pt'.format(epoch))
+                print("save")
             print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')

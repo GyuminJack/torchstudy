@@ -59,8 +59,8 @@ def get_en_ko_datesets():
     ValidDataset.dst_vocab = TrainDataset.dst_vocab
     
     TestDataset = KoEndataset(test_data_paths)
-    TestDataset.src_vocab = TestDataset.src_vocab
-    TestDataset.dst_vocab = TestDataset.dst_vocab
+    TestDataset.src_vocab = TrainDataset.src_vocab
+    TestDataset.dst_vocab = TrainDataset.dst_vocab
 
     return TrainDataset, ValidDataset, TestDataset
 
