@@ -18,7 +18,7 @@ def read_vocab(save_path):
 
 def train():
     
-    BATCH_SIZE = 256
+    BATCH_SIZE = 32
 
     train_data_paths = [
         "./data/src.tr",
@@ -44,7 +44,7 @@ def train():
     configs['src_pad_idx'] = 0
     configs['trg_pad_idx'] = 0
     configs['device'] = 'cuda:1'
-    configs['epochs'] = 300
+    configs['epochs'] = 150
 
     trainer = Trainer(configs)
     trainer.run(TrainDataloader, ValidDataloader)
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         save_vocab(os.path.join(save_path, 'vocab/train_vocab.pkl'), copy.deepcopy(TrainDataset))
 
     elif option == "test":
-        model_path = os.path.join(save_path, '3_best_model_159.pt')
+        model_path = os.path.join(save_path, '3_best_model_36.pt') #159
         configs = dict()
         configs['input_dim'] = 3004
         configs['output_dim'] = 3004
