@@ -75,16 +75,26 @@ class CnnHighway(nn.Module):
         return x
 
 
+# biLSTM forward 재구성 필요
+
 class ELMo(nn.Module):
     def __init__(self, embedding, emb_dim, enc_hid_dim, output_dim, lstm_layer = 2):
         super(ELMo, self).__init__()
         self.embedding = embedding
         self.rnn = nn.LSTM(emb_dim, enc_hid_dim, num_layers=lstm_layer, bidirectional = True)
-        self.fc = nn.Linear(enc_hid_dim * 2, output_dim)
+        self.fc = nn.Linear(enc_hid_dim, output_dim)
 
     def forward(self, input):
         x = self.embedding(input)
         x = x.permute(1, 0, 2)
-        output, hidden = self.rnn(x)
-        predictions = self.fc(output)
-        return predictions
+
+        output, (hidden, c_state) = self.rnn(x)
+        seq_len, batch = output.size()[0:2]
+        # output of shape (seq_len, batch, num_directions * hidden_size)
+        # h_n of shape (num_layers * num_directions, batch, hidden_size) at token t
+        output = output.reshape(seq_len, batch, -1, 2)
+        forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
+        forward_prediction = self.fc(forward_hidden)
+        backward_prediction = self.fc(backward_hidden)
+
+        return forward_prediction, backward_prediction

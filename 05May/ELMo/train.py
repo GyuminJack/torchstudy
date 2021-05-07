@@ -14,14 +14,16 @@ if __name__ == "__main__":
 
     criterion = nn.CrossEntropyLoss(ignore_index = 0)
     optimizer = optim.Adam(elmo.parameters())
-    for i, j in TrainDataloader:
+
+    for original, char_input in TrainDataloader:
         optimizer.zero_grad()
-        input = j[:-1]
-        trg = i[1:].reshape(-1,)
-        pred = elmo(input)
-        pred = pred.reshape(-1, len(TrainDataset.ko_vocab))
-        loss = criterion(pred, trg)
-        print(loss)
+
+        elmo_input = char_input[:,:-1,:]
+        original_trg = original[:,1:]
+
+        fpred, bpred = elmo(elmo_input)
+        forward_loss = criterion(fpred.reshape(-1, len(TrainDataset.ko_vocab)), original_trg.reshape(-1))
+        backward_loss = criterion(bpred.reshape(-1, len(TrainDataset.ko_vocab)), original_trg.reshape(-1))
+        loss = forward_loss + backward_loss
         loss.backward()
         optimizer.step()
-    
