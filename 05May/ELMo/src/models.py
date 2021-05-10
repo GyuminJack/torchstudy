@@ -75,8 +75,6 @@ class CnnHighway(nn.Module):
         return x
 
 
-# biLSTM forward 재구성 필요
-
 class ELMo(nn.Module):
     def __init__(self, embedding, emb_dim, enc_hid_dim, output_dim, lstm_layer = 2):
         super(ELMo, self).__init__()

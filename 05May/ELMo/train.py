@@ -1,6 +1,7 @@
 from src.data import *
 from src.models import *
 import torch.optim as optim
+from src.trainer import *
 
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
@@ -8,22 +9,20 @@ if __name__ == "__main__":
 
     TrainDataloader = DataLoader(TrainDataset, batch_size = 2, shuffle=True, collate_fn=TrainDataset.collate_fn)
 
-    emb_dim = 256
-    ch = CnnHighway(128, emb_dim, TrainDataset.character_dict)
-    elmo = ELMo(ch, emb_dim, 1024, len(TrainDataset.ko_vocab))
+    model_config = {
+        "cnn_embedding" :128,
+        "emb_dim" : 256,
+        "character_dict" : TrainDataset.character_dict,
+        "hidden_size" : 1024,
+        "output_dim" : len(TrainDataset.ko_vocab)
+    }
 
-    criterion = nn.CrossEntropyLoss(ignore_index = 0)
-    optimizer = optim.Adam(elmo.parameters())
+    train_config = {
+        "epochs" : 100,
+        "device" : "cuda:1"
+    }
+    
+    train_config.update(model_config)
+    trainer = Trainer(train_config)
 
-    for original, char_input in TrainDataloader:
-        optimizer.zero_grad()
-
-        elmo_input = char_input[:,:-1,:]
-        original_trg = original[:,1:]
-
-        fpred, bpred = elmo(elmo_input)
-        forward_loss = criterion(fpred.reshape(-1, len(TrainDataset.ko_vocab)), original_trg.reshape(-1))
-        backward_loss = criterion(bpred.reshape(-1, len(TrainDataset.ko_vocab)), original_trg.reshape(-1))
-        loss = forward_loss + backward_loss
-        loss.backward()
-        optimizer.step()
+    trainer.run(TrainDataloader)
