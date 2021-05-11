@@ -37,26 +37,30 @@ class Vocabs:
     def __len__(self):
         return len(self.vocab_dict)
 
-    def build_character_dict(self):
+
+    def build_character_dict(self, size = 2000):
+        char_cnt_dict = defaultdict(lambda:0)
+
         ret = defaultdict(lambda: self.unk_idx)
         ret["<PAD>"] = self.pad_idx
         ret["<UNK>"] = self.unk_idx
         ret["<SOS>"] = self.sos_idx
         ret["<EOS>"] = self.eos_idx
-        index = 4
+        _index = 4
         for i in self.vocab_dict:
             if i not in ['<PAD>','<UNK>','<SOS>','<EOS>']:
                 for char in i:
-                    if char not in ret:
-                        ret[char] = index
-                        index += 1
-                    else:
-                        pass
+                    char_cnt_dict[char] += 1
+
+        for k, v in Counter(char_cnt_dict).most_common(size):
+            ret[k] = _index
+            _index += 1
+
         return ret
 
-    def get_character_dict(self):
+    def get_character_dict(self, size = 2000):
         if self.character_dict is None:
-            self.character_dict = self.build_character_dict()
+            self.character_dict = self.build_character_dict(size = size)
         return self.character_dict
 
     def set_most_common_dict(self, size):
@@ -65,10 +69,10 @@ class Vocabs:
         new_dict["<UNK>"] = self.unk_idx
         new_dict["<SOS>"] = self.sos_idx
         new_dict["<EOS>"] = self.eos_idx
-        self._index = 4
+        _index = 4
         for k, v in Counter(self.count_dict).most_common(size):
-            new_dict[k] = self._index
-            self._index += 1
+            new_dict[k] = _index
+            _index += 1
         self.vocab_dict = new_dict
 
     def update_vocabs_to_file(self, filepath):

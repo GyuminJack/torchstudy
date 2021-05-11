@@ -32,17 +32,21 @@ class Trainer:
 
         self.device = configs['device']
         self.epoch = configs['epochs']
-        self.cnn_embedding = configs['cnn_embedding']
-        self.emb_dim = configs['emb_dim']
-        self.character_dict = configs['character_dict']
+        self.cnn_embedding = configs['character_embedding']
+        self.emb_dim = configs['word_embedding']
+        self.character_set_size = configs['character_set_size']
         self.hidden_size = configs['hidden_size']
+        self.highway_layer = configs['highway_layer']
         self.output_dim = configs['output_dim']
-        
-        ch = CnnHighway(self.cnn_embedding, self.emb_dim, self.character_dict)
+        self.kernal_output = configs['cnn_kernal_output']
+
+        ch = CnnHighwayEmbedding(self.cnn_embedding, self.emb_dim, self.character_set_size, self.kernal_output, highway_layer=self.highway_layer)
         elmo = ELMo(ch, self.emb_dim, self.hidden_size, self.output_dim)
 
         self.model = elmo
+
         self.model.to(self.device)
+        
         self.initialize_weights(self.model)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index = 0)
@@ -52,20 +56,24 @@ class Trainer:
         
         model.train()
         epoch_loss = 0
+        step = 0
         for original, char_input in iterator:
+            step += 1
+            st = time.time()
             optimizer.zero_grad()
 
             elmo_input = char_input[:,:-1,:].to(self.device)
             original_trg = original[:,1:].to(self.device)
 
             fpred, bpred = model(elmo_input)
+
             forward_loss = criterion(fpred.reshape(-1, self.output_dim), original_trg.reshape(-1))
             backward_loss = criterion(bpred.reshape(-1, self.output_dim), original_trg.reshape(-1))
             loss = forward_loss + backward_loss
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-            
+            # print(f"{step}/{len(iterator)}({step/len(iterator)*100:.2f}%) time : {time.time()-st:.3f}s", end="\r")
         return epoch_loss / len(iterator)
 
         
@@ -129,4 +137,4 @@ class Trainer:
             #     torch.save(model.state_dict(),'./model/3_best_model_{}.pt'.format(epoch))
             #     print("save")
             # print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
-            print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
+            print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}', flush=True)

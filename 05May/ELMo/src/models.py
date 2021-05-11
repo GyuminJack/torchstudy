@@ -4,31 +4,43 @@ import torch.nn.functional as F
 
 
 class CNNEmbedding(nn.Module):
-    def __init__(self, emb_dim, output_dim, character_dict, pad_idx = 0):
+    def __init__(self, emb_dim, output_dim, character_set_size, kernal_output, pad_idx = 0):
         super(CNNEmbedding, self).__init__()
-        self.character_dict = character_dict
-        self.char_embedding = nn.Embedding(len(character_dict), emb_dim, padding_idx=pad_idx)
-        self.kernal_out_dims = [[3, 3], [3, 5], [4, 10], [5, 10]]
+        self.char_embedding = nn.Embedding(character_set_size, emb_dim, padding_idx=pad_idx)
+        self.kernal_out_dims = kernal_output
         self.convs = nn.ModuleList([nn.Conv1d(in_channels=emb_dim, out_channels=fs[1], kernel_size=fs[0]) for fs in self.kernal_out_dims])
         
         conv_outdim = 0
-        padded_word_len = 10
-        for i, _ in self.kernal_out_dims:
-            conv_outdim += padded_word_len-i+1
+        for _, j in self.kernal_out_dims:
+            conv_outdim += j
 
         self.fc = nn.Linear(conv_outdim, output_dim)
 
     def forward(self, char_batch):
-        # inputs = [Batch_size, seq_len]
+        # inputs = [Batch_size, max_seq_len, max_character_len]
         a = self.char_embedding(char_batch)
-        batch_size, seq_len, max_word_len, emb_dim = a.size()
 
-        b = a.reshape(-1, max_word_len, emb_dim)
-        b = [conv(b.permute(0, 2, 1)) for conv in self.convs]
-        b = [torch.max(conv.permute(0, 2, 1), dim = -1)[0] for conv in b]
+        # embedding = [batch, max_seq_len, max_character_len, character_emb_dim]
+        batch_size, seq_len, max_character_len, character_emb_dim = a.size()
+        
+        # b = [batch * max_seq_len, max_character_len, character_emb_dim]
+        b = a.reshape(-1, max_character_len, character_emb_dim)
+        
+        # b = [batch * max_seq_len, character_emb_dim, max_charater_len]
+        b = b.permute(0, 2, 1)
+        
+        # conv(b) = [batch * max_seq_len, out_channel, max_seq_len - filter_size + 1]
+        b = [conv(b) for conv in self.convs]
+
+        # torch.max(conv) = [batch * max_seq_len, out_channel]
+        b = [torch.max(conv, dim = -1)[0] for conv in b]
+
+        # torch.cat = [batch * max_seq_len, sum_of_out_channel]
         b = torch.cat(b, dim = 1)
 
         b = self.fc(b)
+
+        # b = [batch, max_seq_len, output_dim]
         b = b.reshape(batch_size, seq_len, -1)
         return b
 
@@ -63,10 +75,10 @@ class Highway(nn.Module):
 
         return x
 
-class CnnHighway(nn.Module):
-    def __init__(self, cnn_emb_dim, elmo_in_dim, character_dict, highway_layer = 2, highway_func = torch.relu, pad_idx = 0):
-        super(CnnHighway, self).__init__()
-        self.cnn_emb = CNNEmbedding(cnn_emb_dim, elmo_in_dim, character_dict)
+class CnnHighwayEmbedding(nn.Module):
+    def __init__(self, cnn_emb_dim, elmo_in_dim, character_set_size, kernal_output, highway_layer = 2, highway_func = torch.relu, pad_idx = 0):
+        super(CnnHighwayEmbedding, self).__init__()
+        self.cnn_emb = CNNEmbedding(cnn_emb_dim, elmo_in_dim, character_set_size, kernal_output, pad_idx = 0)
         self.highway = Highway(elmo_in_dim, highway_layer, highway_func)
     
     def forward(self, input):
@@ -83,15 +95,18 @@ class ELMo(nn.Module):
         self.fc = nn.Linear(enc_hid_dim, output_dim)
 
     def forward(self, input):
-        x = self.embedding(input)
+        # x = [batch, max_seq_len, emb_dim]
+        x = self.embedding(input) # embedding & highway
+        
         x = x.permute(1, 0, 2)
-
         output, (hidden, c_state) = self.rnn(x)
         seq_len, batch = output.size()[0:2]
         # output of shape (seq_len, batch, num_directions * hidden_size)
         # h_n of shape (num_layers * num_directions, batch, hidden_size) at token t
+
         output = output.reshape(seq_len, batch, -1, 2)
         forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
+        
         forward_prediction = self.fc(forward_hidden)
         backward_prediction = self.fc(backward_hidden)
 
