@@ -7,19 +7,20 @@ class CNNEmbedding(nn.Module):
     def __init__(self, emb_dim, output_dim, character_set_size, kernal_output, pad_idx = 0):
         super(CNNEmbedding, self).__init__()
         self.char_embedding = nn.Embedding(character_set_size, emb_dim, padding_idx=pad_idx)
-        self.kernal_out_dims = kernal_output
+        self.kernal_out_dims = kernal_output # [[1, 2], [2, 5], [5, 100]]
         self.convs = nn.ModuleList([nn.Conv1d(in_channels=emb_dim, out_channels=fs[1], kernel_size=fs[0]) for fs in self.kernal_out_dims])
-        
-        conv_outdim = 0
-        for _, j in self.kernal_out_dims:
-            conv_outdim += j
+        self.dropout = nn.Dropout(0.5)
 
-        self.fc = nn.Linear(conv_outdim, output_dim)
+        # layer normalization 추가
+        self.ln = nn.LayerNorm(sum([j for _, j in self.kernal_out_dims]))
+
+        self.fc = nn.Linear(sum([j for _, j in self.kernal_out_dims]), output_dim)
 
     def forward(self, char_batch):
         # inputs = [Batch_size, max_seq_len, max_character_len]
         a = self.char_embedding(char_batch)
 
+        a = self.dropout(a)
         # embedding = [batch, max_seq_len, max_character_len, character_emb_dim]
         batch_size, seq_len, max_character_len, character_emb_dim = a.size()
         
@@ -37,6 +38,8 @@ class CNNEmbedding(nn.Module):
 
         # torch.cat = [batch * max_seq_len, sum_of_out_channel]
         b = torch.cat(b, dim = 1)
+
+        # b = self.ln(b)
 
         b = self.fc(b)
 
@@ -79,10 +82,12 @@ class CnnHighwayEmbedding(nn.Module):
     def __init__(self, cnn_emb_dim, elmo_in_dim, character_set_size, kernal_output, highway_layer = 2, highway_func = torch.relu, pad_idx = 0):
         super(CnnHighwayEmbedding, self).__init__()
         self.cnn_emb = CNNEmbedding(cnn_emb_dim, elmo_in_dim, character_set_size, kernal_output, pad_idx = 0)
+        self.ln = nn.LayerNorm([elmo_in_dim])
         self.highway = Highway(elmo_in_dim, highway_layer, highway_func)
     
     def forward(self, input):
         x = self.cnn_emb(input)
+        x = self.ln(x)
         x = self.highway(x)
         return x
 
@@ -91,23 +96,30 @@ class ELMo(nn.Module):
     def __init__(self, embedding, emb_dim, enc_hid_dim, output_dim, lstm_layer = 2):
         super(ELMo, self).__init__()
         self.embedding = embedding
+        # self.ln = nn.LayerNorm([emb_dim])
+        self.dropout = nn.Dropout(0.3)
         self.rnn = nn.LSTM(emb_dim, enc_hid_dim, num_layers=lstm_layer, bidirectional = True)
         self.fc = nn.Linear(enc_hid_dim, output_dim)
 
     def forward(self, input):
         # x = [batch, max_seq_len, emb_dim]
         x = self.embedding(input) # embedding & highway
-        
+        # x = self.ln(x)
+        x = self.dropout(x)
+
         x = x.permute(1, 0, 2)
         output, (hidden, c_state) = self.rnn(x)
+
         seq_len, batch = output.size()[0:2]
         # output of shape (seq_len, batch, num_directions * hidden_size)
         # h_n of shape (num_layers * num_directions, batch, hidden_size) at token t
+        forward_hidden = output.view(seq_len, batch, 2, -1)[:,:,0,:]
+        backward_hidden = output.view(seq_len, batch, 2, -1)[:,:,1,:]
 
-        output = output.reshape(seq_len, batch, -1, 2)
-        forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
+        # output = output.reshape(seq_len, batch, -1, 2)
+        # forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
         
         forward_prediction = self.fc(forward_hidden)
         backward_prediction = self.fc(backward_hidden)
-
+        
         return forward_prediction, backward_prediction

@@ -39,18 +39,21 @@ class Trainer:
         self.highway_layer = configs['highway_layer']
         self.output_dim = configs['output_dim']
         self.kernal_output = configs['cnn_kernal_output']
+        self.schedule = configs['schedule']
 
+        if configs['optimizer'] is not None:
+            self.optimizer = configs['optimizer']
+        else:
+            self.optimizer = optim.Adam
+
+        self.lr = configs['lr']
+       
         ch = CnnHighwayEmbedding(self.cnn_embedding, self.emb_dim, self.character_set_size, self.kernal_output, highway_layer=self.highway_layer)
         elmo = ELMo(ch, self.emb_dim, self.hidden_size, self.output_dim)
 
         self.model = elmo
-
         self.model.to(self.device)
-        
-        self.initialize_weights(self.model)
-
-        self.criterion = nn.CrossEntropyLoss(ignore_index = 0)
-        self.optimizer = optim.Adam(self.model.parameters())
+        # self.initialize_weights(self.model)
 
     def train(self, model, iterator, optimizer, scheduler, criterion, clip):
         
@@ -61,19 +64,29 @@ class Trainer:
             step += 1
             st = time.time()
             optimizer.zero_grad()
-
             elmo_input = char_input[:,:-1,:].to(self.device)
             original_trg = original[:,1:].to(self.device)
-
             fpred, bpred = model(elmo_input)
 
-            forward_loss = criterion(fpred.reshape(-1, self.output_dim), original_trg.reshape(-1))
-            backward_loss = criterion(bpred.reshape(-1, self.output_dim), original_trg.reshape(-1))
-            loss = forward_loss + backward_loss
+            # foutput = fpred.contiguous().view(-1, self.output_dim)
+            # boutput = bpred.contiguous().view(-1, self.output_dim)
+            # trg = original_trg.reshape(-1)
+
+            flatten_target = original_trg.view(-1)
+            # fliped_target = torch.flip(original_trg, dims = [1]).reshape(-1)
+            del elmo_input
+
+            forward_loss = criterion(fpred.view(-1, self.output_dim), flatten_target)
+            backward_loss = criterion(bpred.view(-1, self.output_dim), flatten_target)
+
+            loss = 0.5 * (forward_loss + backward_loss)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
             optimizer.step()
-            epoch_loss += loss.item()
-            # print(f"{step}/{len(iterator)}({step/len(iterator)*100:.2f}%) time : {time.time()-st:.3f}s", end="\r")
+            step_loss_val = loss.item()
+            epoch_loss += step_loss_val
+
+            # print(f"step_loss : {step_loss_val:.3f}(->{forward_loss.item():.2f}/<-{backward_loss.item():.2f}), {step}/{len(iterator)}({step/len(iterator)*100:.2f}%) time : {time.time()-st:.3f}s", end="\r")
         return epoch_loss / len(iterator)
 
         
@@ -104,22 +117,22 @@ class Trainer:
 
     def initialize_weights(self, m):
         if hasattr(m, 'weight') and m.weight.dim() > 1:
-            nn.init.xavier_uniform_(m.weight.data)
+            nn.init.xavier_normal_(m.weight.data)
 
     def run(self, train_iterator):
         N_EPOCHS = self.epoch
-        CLIP = 1
+        CLIP = 5
         model = self.model
         best_valid_loss = float('inf')
 
-        schedule_opt = False
+        schedule_opt = self.schedule
 
         if schedule_opt:
             c_optimizer = torch.optim.Adam(model.parameters(), lr = 1,  betas = (0.9, 0.98), eps=10e-9)
-            c_scheduler = WarmupConstantSchedule(c_optimizer, d_model = 256, warmup_steps = 4000)
+            c_scheduler = WarmupConstantSchedule(c_optimizer, d_model = 512, warmup_steps = 2000)
         else:    
-            c_optimizer = torch.optim.Adam(model.parameters(), lr = 0.0005,  betas = (0.9, 0.98), eps=10e-9)
-        #     c_optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
+            c_optimizer = self.optimizer(model.parameters(), lr = self.lr, betas = (0.9, 0.98), eps=10e-9)
+            # c_optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
             c_scheduler = None
 
         criterion = nn.CrossEntropyLoss(ignore_index = 0)
