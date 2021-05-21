@@ -4,21 +4,28 @@ import torch.optim as optim
 from src.trainer import *
 from torch.utils.data import DataLoader
 import time
+import dill
+
+def save_pkl(obj, obj_path):
+    with open(obj_path, "wb") as f:
+        dill.dump(obj, f)
+
 if __name__ == "__main__":
     st = time.time()
-    TrainDataset = KoDataset("/home/jack/torchstudy/05May/ELMo/data/new_cleaned_petition.ko", 
+    TrainDataset = KoDataset("/home/jack/torchstudy/05May/ELMo/data/new_cleaned_petition.ko.patch1", 
                 max_character_length = 5,
                 max_character_size = 800, # FIXED VALUE 
-                max_vocab_size = 30000
+                max_vocab_size = 40000
                 )
-    
+    save_pkl(TrainDataset, "./vocab/traindataset.pkl")
+
     print(f"1. Finish TrainDataset({time.time()-st:.3f}s)")
 
 
     model_config = {
-        "character_embedding" : 128,
-        'cnn_kernal_output' : [[2, 256],[3, 256],[4, 256]],
-        "word_embedding" : 256,
+        "character_embedding" : 256,
+        'cnn_kernal_output' : [[2, 256],[3, 256]],
+        "word_embedding" : 512,
         "character_set_size" : len(TrainDataset.character_dict),
         'highway_layer' : 2,
         "hidden_size" : 512,
@@ -26,7 +33,7 @@ if __name__ == "__main__":
     }
 
     train_config = {
-        "epochs" : 150,
+        "epochs" : 400,
         "device" : "cuda:0",
         "batch_size" : 96,
         "lr" : 0.005,

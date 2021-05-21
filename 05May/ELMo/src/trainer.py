@@ -65,7 +65,8 @@ class Trainer:
             st = time.time()
             optimizer.zero_grad()
             elmo_input = char_input[:,:-1,:].to(self.device)
-            original_trg = original[:,1:].to(self.device)
+            original_trg = original[:,1:].T.to(self.device)
+            
             fpred, bpred = model(elmo_input)
 
             # foutput = fpred.contiguous().view(-1, self.output_dim)
@@ -74,19 +75,19 @@ class Trainer:
 
             flatten_target = original_trg.view(-1)
             # fliped_target = torch.flip(original_trg, dims = [1]).reshape(-1)
-            del elmo_input
+            # print(fpred[0])
 
             forward_loss = criterion(fpred.view(-1, self.output_dim), flatten_target)
             backward_loss = criterion(bpred.view(-1, self.output_dim), flatten_target)
 
-            loss = 0.5 * (forward_loss + backward_loss)
+            loss = forward_loss + backward_loss
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
             optimizer.step()
             step_loss_val = loss.item()
             epoch_loss += step_loss_val
 
-            # print(f"step_loss : {step_loss_val:.3f}(->{forward_loss.item():.2f}/<-{backward_loss.item():.2f}), {step}/{len(iterator)}({step/len(iterator)*100:.2f}%) time : {time.time()-st:.3f}s", end="\r")
+            print(f"step_loss : {step_loss_val:.3f}(->{forward_loss.item():.2f}/<-{backward_loss.item():.2f}), {step}/{len(iterator)}({step/len(iterator)*100:.2f}%) time : {time.time()-st:.3f}s", end="\r")
         return epoch_loss / len(iterator)
 
         
@@ -117,7 +118,7 @@ class Trainer:
 
     def initialize_weights(self, m):
         if hasattr(m, 'weight') and m.weight.dim() > 1:
-            nn.init.xavier_normal_(m.weight.data)
+            nn.init.xavier_uniform_(m.weight.data)
 
     def run(self, train_iterator):
         N_EPOCHS = self.epoch
@@ -136,7 +137,7 @@ class Trainer:
             c_scheduler = None
 
         criterion = nn.CrossEntropyLoss(ignore_index = 0)
-            
+
         for epoch in range(N_EPOCHS):
             start_time = time.time()
         #     train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
@@ -145,9 +146,8 @@ class Trainer:
             epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
             # if (valid_loss < best_valid_loss) & (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
-            # if (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
-            #     best_valid_loss = valid_loss
-            #     torch.save(model.state_dict(),'./model/3_best_model_{}.pt'.format(epoch))
-            #     print("save")
+            if (train_loss < best_valid_loss) & (epoch > 3):
+                best_valid_loss = train_loss
+                torch.save(model,'./model/best_model_0521_{}.pt'.format(epoch))
             # print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
             print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}', flush=True)

@@ -41,7 +41,7 @@ class CNNEmbedding(nn.Module):
 
         # b = self.ln(b)
 
-        b = self.fc(b)
+        # b = self.fc(b)
 
         # b = [batch, max_seq_len, output_dim]
         b = b.reshape(batch_size, seq_len, -1)
@@ -111,15 +111,38 @@ class ELMo(nn.Module):
         output, (hidden, c_state) = self.rnn(x)
 
         seq_len, batch = output.size()[0:2]
+
         # output of shape (seq_len, batch, num_directions * hidden_size)
         # h_n of shape (num_layers * num_directions, batch, hidden_size) at token t
-        forward_hidden = output.view(seq_len, batch, 2, -1)[:,:,0,:]
-        backward_hidden = output.view(seq_len, batch, 2, -1)[:,:,1,:]
-
-        # output = output.reshape(seq_len, batch, -1, 2)
-        # forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
+        # forward_hidden = output.view(seq_len, batch, 2, -1)[:,:,0,:]
+        # backward_hidden = output.view(seq_len, batch, 2, -1)[:,:,1,:]
         
+        output = output.reshape(seq_len, batch, -1, 2)
+        forward_hidden, backward_hidden = output[:,:,:,0], output[:,:,:,1]
+
         forward_prediction = self.fc(forward_hidden)
         backward_prediction = self.fc(backward_hidden)
         
         return forward_prediction, backward_prediction
+
+class task_fine_tune(nn.Module):
+    def __init__(self, concat_dim, n_layers = 3, projection = 512, device = 'cpu'):
+        super(task_fine_tune, self).__init__() 
+        self.device = device
+        self.task_gamma = torch.Tensor([0.01])
+        self.task_tensor = torch.Tensor([1.] * n_layers)
+        self.softmax = nn.Softmax(dim=0)
+        self.projection = False
+        if projection is not None:
+            self.projection = True
+            self.fc = nn.Linear(concat_dim, projection)
+
+    def forward(self, input):
+        input = input.to(self.device)
+        task_s = self.softmax(self.task_tensor.to(self.device))
+        task_vectors = torch.einsum('t,bsle->bse', task_s, input)
+        task_vectors = torch.einsum('g,bse->bse', self.task_gamma.to(self.device), task_vectors)
+        if self.projection:
+            task_vectors = self.fc(task_vectors)
+        task_vectors = task_vectors.permute(1, 0, 2)
+        return task_vectors
