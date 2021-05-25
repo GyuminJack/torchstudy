@@ -1,3 +1,4 @@
+
 ### Results
 ------
 #### What I've learned
@@ -18,6 +19,9 @@
   - 딥러닝 모델의 capability를 의심하기 보단 내 코드를 의심하자..
 - layer nomalization 
 - downstream task
+<img width="993" alt="스크린샷 2021-05-25 오후 5 36 40" src="https://user-images.githubusercontent.com/32768535/119466671-d2cbcd00-bd7f-11eb-894a-3e75562f1b9b.png">
+
+<img width="946" alt="스크린샷 2021-05-25 오후 5 36 48" src="https://user-images.githubusercontent.com/32768535/119466685-d7908100-bd7f-11eb-96d8-7bfac75e72f0.png">
 
 #### More
 - batch, layer normalization
