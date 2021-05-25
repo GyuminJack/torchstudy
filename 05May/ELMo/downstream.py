@@ -116,8 +116,8 @@ if __name__ == "__main__":
 
     id2label_dict = {v : k for k, v in TrainDataset.label_dict.items()}
 
-    device = "cuda:1"
-    model_type = 'elmo' # [base, base_without_w2v, elmo]
+    device = "cuda:0"
+    model_type = 'random_emb_init' # [base, base_without_w2v, elmo]
     elmo_w2v = True   # when model_type is elmo, option for using w2v
     w2v_init = False
     ### Todo
