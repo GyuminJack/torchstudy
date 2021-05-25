@@ -17,26 +17,27 @@ if __name__ == "__main__":
                 max_character_size = 800, # FIXED VALUE 
                 max_vocab_size = 40000
                 )
+    
     save_pkl(TrainDataset, "./vocab/traindataset.pkl")
 
     print(f"1. Finish TrainDataset({time.time()-st:.3f}s)")
 
-
+    emb_layer = 256
     model_config = {
-        "character_embedding" : 256,
-        'cnn_kernal_output' : [[2, 256],[3, 256]],
-        "word_embedding" : 512,
+        "character_embedding" : 128,
+        'cnn_kernal_output' : [[2, int(emb_layer/2)],[3, int(emb_layer/2)]],
+        "word_embedding" : emb_layer, # sum of cnn_kernal_output 
         "character_set_size" : len(TrainDataset.character_dict),
         'highway_layer' : 2,
-        "hidden_size" : 512,
+        "hidden_size" : emb_layer,
         "output_dim" : len(TrainDataset.ko_vocab)
     }
 
     train_config = {
         "epochs" : 400,
-        "device" : "cuda:0",
+        "device" : "cuda:1",
         "batch_size" : 96,
-        "lr" : 0.005,
+        "lr" : 0.001,
         "optimizer" : torch.optim.Adam,
         "schedule" : False
     }

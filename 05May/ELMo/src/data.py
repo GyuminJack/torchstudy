@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import linecache
 import torch
+from collections import defaultdict
 from torch.nn.utils.rnn import pad_sequence
 
 def get_special_list(first, pad, tot_len):
@@ -91,24 +92,25 @@ class KoDownStreamDataset(Dataset):
         self.id2word_dict = {v : k for k, v in self.elmo_vocab.vocab_dict.items()}
         self.max_character_length = elmo_max_char_length
         self.character_dict = elmo_character_vocab
-        self.label_dict = dict()
+        self.label_dict = defaultdict(lambda : -1)
         with open(self.data_path, "r") as f:
             self._total_data = len(f.readlines())
 
+        self.devider = "|^|"
         _index = 0
         with open(self.data_path, "r") as f:
             for line in f.readlines():
-                label = line.split("::")[0]
+                label = line.split(self.devider)[0]
                 if label not in self.label_dict:
                     self.label_dict[label] = _index
                     _index +=1
-
+        # print(self.label_dict)
     def __len__(self):
         return self._total_data 
 
     def __getitem__(self, idx):     
         raw_ko = linecache.getline(self.data_path, idx + 1).strip()
-        label, raw_ko = raw_ko.split("::")
+        label, raw_ko = raw_ko.split(self.devider)
         ko_tensor_ = torch.tensor([2]+[self.elmo_vocab.vocab_dict[token] for token in self.elmo_vocab.tokenizer(raw_ko)]+[3]).long()
         return ko_tensor_, self.label_dict[label]
 

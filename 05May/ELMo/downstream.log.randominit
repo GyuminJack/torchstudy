@@ -1,0 +1,21 @@
+nohup: ignoring input
+train_loss : 2.394, valid_loss : 2.223, time : 147.457s
+train_loss : 2.104, valid_loss : 2.047, time : 152.462s
+train_loss : 1.933, valid_loss : 1.942, time : 153.517s
+train_loss : 1.811, valid_loss : 1.866, time : 153.990s
+train_loss : 1.719, valid_loss : 1.823, time : 153.606s
+train_loss : 1.639, valid_loss : 1.785, time : 154.170s
+train_loss : 1.568, valid_loss : 1.787, time : 177.217s
+train_loss : 1.497, valid_loss : 1.777, time : 214.086s
+train_loss : 1.431, valid_loss : 1.767, time : 213.266s
+train_loss : 1.366, valid_loss : 1.791, time : 186.112s
+train_loss : 1.302, valid_loss : 1.776, time : 155.665s
+train_loss : 1.239, valid_loss : 1.792, time : 154.336s
+train_loss : 1.177, valid_loss : 1.810, time : 155.675s
+train_loss : 1.114, valid_loss : 1.849, time : 155.046s
+train_loss : 1.056, valid_loss : 1.855, time : 152.045s
+train_loss : 0.996, valid_loss : 1.893, time : 156.808s
+train_loss : 0.933, valid_loss : 1.981, time : 159.177s
+train_loss : 0.875, valid_loss : 1.992, time : 154.844s
+train_loss : 0.816, valid_loss : 2.047, time : 157.855s
+train_loss : 0.757, valid_loss : 2.131, time : 152.091s
