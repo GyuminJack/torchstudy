@@ -12,13 +12,15 @@ def save_pkl(obj, obj_path):
 
 if __name__ == "__main__":
     st = time.time()
-    TrainDataset = KoDataset("/home/jack/torchstudy/05May/ELMo/data/new_cleaned_petition.ko.patch1", 
-                max_character_length = 5,
-                max_character_size = 800, # FIXED VALUE 
+    # sentence_cleaned_namu_train
+
+    TrainDataset = KoDataset("/home/jack/torchstudy/05May/ELMo/data/petition_ynat.train", 
+                max_character_length = 7,
+                max_character_size = 1500, # FIXED VALUE 
                 max_vocab_size = 40000
                 )
     
-    save_pkl(TrainDataset, "./vocab/traindataset.pkl")
+    save_pkl(TrainDataset, "./vocab/petition_ynat.pkl")
 
     print(f"1. Finish TrainDataset({time.time()-st:.3f}s)")
 
@@ -34,12 +36,13 @@ if __name__ == "__main__":
     }
 
     train_config = {
-        "epochs" : 400,
+        "epochs" : 100,
         "device" : "cuda:1",
-        "batch_size" : 96,
-        "lr" : 0.001,
+        "batch_size" : 64,
+        "lr" : 0.0005,
         "optimizer" : torch.optim.Adam,
-        "schedule" : False
+        "schedule" : False,
+        "save_name" : "petition_ynat_0531.pt"
     }
     
     TrainDataloader = DataLoader(TrainDataset, batch_size = train_config['batch_size'], shuffle=True, collate_fn=TrainDataset.collate_fn)

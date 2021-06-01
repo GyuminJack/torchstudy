@@ -40,7 +40,7 @@ class Trainer:
         self.output_dim = configs['output_dim']
         self.kernal_output = configs['cnn_kernal_output']
         self.schedule = configs['schedule']
-
+        self.save_name = configs['save_name']
         if configs['optimizer'] is not None:
             self.optimizer = configs['optimizer']
         else:
@@ -141,13 +141,16 @@ class Trainer:
         for epoch in range(N_EPOCHS):
             start_time = time.time()
         #     train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
-            train_loss = self.train(model, train_iterator, c_optimizer, c_scheduler, criterion, CLIP)
-            end_time = time.time()
-            epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+            try:
+                train_loss = self.train(model, train_iterator, c_optimizer, c_scheduler, criterion, CLIP)
+                end_time = time.time()
+                epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-            # if (valid_loss < best_valid_loss) & (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
-            if (train_loss < best_valid_loss) & (epoch > 3):
-                best_valid_loss = train_loss
-                torch.save(model,'./model/best_model_0524_256.pt'.format(epoch))
-            # print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
-            print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}', flush=True)
+                # if (valid_loss < best_valid_loss) & (train_loss < 2) & (valid_loss < 6.5) & (epoch > 30):
+                if (train_loss < best_valid_loss) & (epoch > 3):
+                    best_valid_loss = train_loss
+                    torch.save(model,'./model/{}'.format(self.save_name))
+                # print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f} | Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+                print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | Train Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}', flush=True)
+            except:
+                pass

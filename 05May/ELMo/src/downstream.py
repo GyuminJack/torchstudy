@@ -48,25 +48,27 @@ class BaseGRUClassifier(nn.Module):
         [emb.weight.data.copy_(vectors_in_trainset) for emb in self.embs]
 
 def get_hiddens(model, input_batch, nlayers=2):
-    hiddens = []
-    embs = []
-    steps = input_batch.size()[1]
-    for i in range(steps):
-        each_input = input_batch[:,i,:].unsqueeze(1)
-        x = model.embedding(each_input) # embedding & highway
-        x = x.permute(1, 0, 2)
-        output, (hidden, c_state) = model.rnn(x)
-        embs.append(x)
-        hiddens.append(hidden)
-    embs = torch.stack(embs)
-    embs = embs.permute(2, 0, 1, 3)
-    hiddens = torch.stack(hiddens)
-    hiddens = hiddens.permute(2, 0, 1, 3)
+    model.eval()
+    with torch.no_grad():
+        hiddens = []
+        embs = []
+        steps = input_batch.size()[1]
+        for i in range(steps):
+            each_input = input_batch[:,i,:].unsqueeze(1)
+            x = model.embedding(each_input) # embedding & highway
+            x = x.permute(1, 0, 2)
+            output, (hidden, c_state) = model.rnn(x)
+            embs.append(x)
+            hiddens.append(hidden)
+        embs = torch.stack(embs)
+        embs = embs.permute(2, 0, 1, 3)
+        hiddens = torch.stack(hiddens)
+        hiddens = hiddens.permute(2, 0, 1, 3)
 
-    fhiddens, bhiddens = hiddens[:,:,:nlayers,:], hiddens[:,:,nlayers:,:]
-    s_lstm_hiddens = torch.cat([fhiddens, bhiddens], dim=3)
-    s_embs = torch.cat([embs, embs], dim = 3)
-    ret = torch.cat([s_embs, s_lstm_hiddens], dim=2)
+        fhiddens, bhiddens = hiddens[:,:,:nlayers,:], hiddens[:,:,nlayers:,:]
+        s_lstm_hiddens = torch.cat([fhiddens, bhiddens], dim=3)
+        s_embs = torch.cat([embs, embs], dim = 3)
+        ret = torch.cat([s_embs, s_lstm_hiddens], dim=2)
     return ret
 
 class task_fine_tune(nn.Module):
@@ -100,6 +102,7 @@ class GRUClassifier(nn.Module):
     def __init__(self, elmo, elmo_hidden_output_dim, elmo_projection_dim, elmo_train_vocab, hid_dim, output_dim, w2v_path, emb_dim = 200, use_idp_emb = True, n_layers = 2, dropout_rate = 0.5, pad_idx = 0, device = 'cuda:1'):
         super(GRUClassifier, self).__init__()
         self.elmo = elmo
+
         vocab_size = len(elmo_train_vocab)
         self.device = device
         
