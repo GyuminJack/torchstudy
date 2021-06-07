@@ -8,6 +8,7 @@ data/
 model/
 vocab/
 nlp_torch_study/
+settings.json
 *.pt
 checkpoint/
 ppt/
