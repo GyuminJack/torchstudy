@@ -1,4 +1,0 @@
-nohup: ignoring input
-train_loss : 2.340, valid_loss : 2.109, time : 308.113s
-train_loss : 2.029, valid_loss : 1.961, time : 309.504s
-train_loss : 1.875, valid_loss : 1.908, time : 310.410s

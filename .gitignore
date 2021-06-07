@@ -1,6 +1,13 @@
 # my-ignore
 0_datas/
 .data/
+mlruns/
+log/
+eval/
+data/
+model/
+vocab/
+nlp_torch_study/
 *.pt
 checkpoint/
 ppt/
