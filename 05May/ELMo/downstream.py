@@ -342,4 +342,4 @@ if __name__ == "__main__":
 
     elif _train == False:
         model = torch.load("./model/tmp.pt")
-        evaluate(model, criterion, ValidDataloader, TrainDataset.id2word_dict, id2label_dict, 'custom_test', device = device)
+        evaluate(model, criterion, ValidDataloader, TrainDataset.id2word_dict, id2label_dict, 'custom_test', device = device) 
