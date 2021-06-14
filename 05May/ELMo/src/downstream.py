@@ -21,6 +21,7 @@ class BaseGRUClassifier(nn.Module):
  
     def forward(self, tokens):
         independent_input = tokens[1].to(self.device)
+        
         embedding = self.embedding_static(independent_input)
         output, hidden = self.rnn(embedding)
         # output = (seq_len, batch, num_directions * hidden_size)
@@ -44,7 +45,10 @@ class BaseGRUClassifier(nn.Module):
         return stacked_data
 
     def _init_embedding_vectors(self, w2v_path, my_vocabs):
-        vectors_in_trainset = self.make_init_vectors(w2v_path, my_vocabs.vocab_dict.keys())
+        try:
+            vectors_in_trainset = self.make_init_vectors(w2v_path, my_vocabs.vocab_dict.keys())
+        except:
+            vectors_in_trainset = self.make_init_vectors(w2v_path, my_vocabs.keys())
         [emb.weight.data.copy_(vectors_in_trainset) for emb in self.embs]
 
 def get_hiddens(model, input_batch, nlayers=2):
