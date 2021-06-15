@@ -132,8 +132,15 @@ if __name__ == "__main__":
     elif args.mode == "test":
         vocab_save_path = args.load_path
         tokenizer = load_tokenizer(vocab_save_path)
-        sentence = ["나는 오늘 아침밥을 먹었다.", "나는 오늘나는 오늘나는 오늘나는 오늘나는 오늘나는 오늘나는 오늘 아침밥을 먹습니다아아"]
+        sentence = ["나는 오늘 아침밥을 먹었다.", "우리집 강아지는 복슬강아지 학교갔다"]
 
         output = tokenizer.encode(sentence, return_tensors="pt")
 
-        print("Tokens (str) : {}".format([tokenizer.convert_ids_to_tokens(s) for s in output.tolist()]))
+        print("No Mecab Tokens (str) : {}".format([tokenizer.convert_ids_to_tokens(s) for s in output.tolist()]))
+
+        mecab_tokenizer = Mecab().morphs
+        sentence = [" ".join(mecab_tokenizer(i)) for i in sentence]
+
+        output = tokenizer.encode(sentence, return_tensors="pt")
+
+        print("Yes Mecab Tokens (str) : {}".format([tokenizer.convert_ids_to_tokens(s) for s in output.tolist()]))

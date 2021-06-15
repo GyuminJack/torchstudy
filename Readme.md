@@ -12,3 +12,5 @@
 |02|Sequence to Sequence Learning with Neural Networks|0201|https://arxiv.org/abs/1409.3215|https://github.com/bentrevett/pytorch-seq2seq/blob/master/1%20-%20Sequence%20to%20Sequence%20Learning%20with%20Neural%20Networks.ipynb|
 |02|Neural Machine Translation by Jointly Learning to Alignt and Translate|0301|https://arxiv.org/pdf/1409.0473.pdf|https://github.com/bentrevett/pytorch-seq2seq/blob/master/3%20-%20Neural%20Machine%20Translation%20by%20Jointly%20Learning%20to%20Align%20and%20Translate.ipynb|
 |03|Attention is All You Need|0401|https://arxiv.org/abs/1706.03762|https://github.com/bentrevett/pytorch-seq2seq/blob/master/6%20-%20Attention%20is%20All%20You%20Need.ipynb|
+|04|ELMo|0401|https://arxiv.org/abs/1802.05365||
+|05|BERT|0401|https://arxiv.org/abs/1810.04805||
