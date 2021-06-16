@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch.autograd import Variable
 import math
 
-
 class MockEncoder(nn.Module):
     def __init__(self, input_dim, hid_dim, output_dim):
         super().__init__()
@@ -36,11 +35,14 @@ class PositionalEncoding(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, hid_dim, output_dim, n_layers, n_heads, pf_dim, dropout, device, max_length=100):
+    def __init__(self, input_dim, hid_dim, output_dim, n_layers, n_heads, pf_dim, dropout, max_length=256):
         super().__init__()
 
         self.tok_embedding = nn.Embedding(input_dim, hid_dim)
-        self.pos_embedding = PositionalEncoding(hid_dim)
+        self.segment_embedding = nn.Embedding(2, hid_dim)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+
+        # self.pos_embedding = PositionalEncoding(hid_dim)
 
         self.layers = nn.ModuleList([EncoderLayer(hid_dim, n_heads, pf_dim, dropout) for _ in range(n_layers)])
 
@@ -49,16 +51,19 @@ class Encoder(nn.Module):
         self.fc = nn.Linear(hid_dim, output_dim)
         self.nsp_layer = nn.Linear(output_dim, 2)
 
-    def forward(self, src, src_mask):
+    def forward(self, src, src_mask, segment):
 
         # src = [batch size, src len]
         # src_mask = [batch size, 1, 1, src len]
 
         batch_size = src.shape[0]
         src_len = src.shape[1]
+        
+        pos = self.pos_embedding(torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(src.device))
+        segment = self.segment_embedding(segment)
 
-        pos = torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1)
-        src = self.dropout(self.pos_embedding((self.tok_embedding(src) * self.scale)))
+        src = self.tok_embedding(src) + pos + segment
+        src = self.dropout(src)
 
         for layer in self.layers:
             src = layer(src, src_mask)
@@ -182,9 +187,10 @@ class PositionwiseFeedforwardLayer(nn.Module):
         super().__init__()
         self.fc_1 = nn.Linear(hid_dim, pf_dim)
         self.fc_2 = nn.Linear(pf_dim, hid_dim)
+        self.gelu = torch.nn.GELU()
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        x = self.dropout(torch.relu(self.fc_1(x)))
+        x = self.dropout(self.gelu(self.fc_1(x)))
         x = self.fc_2(x)
         return x
