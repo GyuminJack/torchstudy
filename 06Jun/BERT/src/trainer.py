@@ -11,28 +11,28 @@ class Trainer:
         n_heads = configs["n_heads"]
         pf_mid_dim = configs["pf_dim"]
         dropout_rate = configs["dropout"]
+        max_length = configs["max_length"]
         self.device = configs["device"]
-
-        assert hidden_dim % n_heads == 0, "n_head mis-matched"
 
         self.model = Encoder(input_size, hidden_dim, output_size, n_layers, n_heads, pf_mid_dim, dropout_rate)
         self.model.to(self.device)
-
-        self.set_optimizer(schedule=True)
+        
+        self.epoch = configs["epoch"]
+        self.set_optimizer(optimizer = configs['optimizer'], lr = configs['lr'], schedule=False)
         self.set_loss()
 
     def set_loss(self):
         self.loss = torch.nn.CrossEntropyLoss()
 
-    def set_optimizer(self, schedule = False):
-        self.optimizer = configs['optimizer']
+    def set_optimizer(self, optimizer, lr, schedule = False):
         if schedule:
             pass
         else:
             self.scheduler = None
-            self.optimizer = self.optimizer(self.model.parameters())
+            self.optimizer = optimizer(self.model.parameters(), lr=lr, weight_decay=0.01)
 
     def train(self, iterator):
+        ret_loss = 0
         for batch_dict in iterator:
             self.optimizer.zero_grad()
 
@@ -41,7 +41,8 @@ class Trainer:
             attention_masks = batch_dict["attention_masks"].unsqueeze(1).unsqueeze(2).to(self.device)
             true_inputs = batch_dict["labels"].to(self.device)
             nsp_labels = batch_dict["nsp_labels"].to(self.device)
-            mask_marking = batch_dict["mask_marking"].to(self.device)
+            mask_marking = batch_dict["mask_marking"][:, 1:].to(self.device)
+
             indices = (mask_marking.reshape(-1) == 1).nonzero().reshape(-1).to(self.device)
 
             mlm_true = torch.index_select(true_inputs.reshape(-1), 0, indices)
@@ -52,11 +53,13 @@ class Trainer:
 
             # flatten_output = output.reshape(-1, output.size(-1))
 
-            # Cross Entropy : NSP (nsp_labels, nsp_output)
-            # Cross Entropy : MLM (mlm_labels, mlm_output)
             nsp_loss = self.loss(nsp_output, nsp_labels)
-            nsp_loss.backward()
+            mlm_loss = self.loss(mlm_output, mlm_labels)
+            # mlm_loss = 0
+            total_loss = nsp_loss + mlm_loss
 
+            total_loss.backward()
+            ret_loss += total_loss.item()
             self.optimizer.step()
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -66,14 +69,18 @@ class Trainer:
             logging.debug(f"Selected MLM output (# of Mask, Out_vocab) : {mlm_output.size()}")
             logging.debug(f"NSP output (B, 2) : {nsp_output.size()}")
 
-        return
+        epoch_loss = ret_loss / len(iterator)
+        return epoch_loss
 
     def valid(self, iterator):
         pass
 
     def run(self, train_iter, valid_iter, test_iter):
-        self.train(train_iter)
-
+        for i in range(self.epoch):
+            train_loss = self.train(train_iter)
+            print(train_loss, flush=True)
+        torch.save(self.model,'../models/tmp_saved.pt')
+       
 
 if __name__ == "__main__":
     import sys
@@ -91,17 +98,26 @@ if __name__ == "__main__":
     dataset = KoDataset_nsp_mlm(vocab_txt_path, txt_path)
     train_data_loader = DataLoader(dataset, collate_fn=lambda batch: dataset.collate_fn(batch), batch_size=256)
 
-    config = {
+    base_config = {
         "input_dim": dataset.tokenizer.vocab_size,
         "d_model": 768,
         "output_dim": dataset.tokenizer.vocab_size,
-        "n_layers": 12,
-        "n_heads": 12,
-        "pf_dim": 1024,
-        "dropout": 0.1,
-        "device": "cuda:1",
-        "optimizer" : torch.optim.Adam
+        "n_layers" : 12,
+        "n_heads" : 12,
+        "pf_dim" : 1024,
+        "max_length" : 256,
+        "dropout" : 0.1
     }
-    trainer = Trainer(config)
+
+    train_config = {
+        "epoch" : 100,
+        "optimizer" : torch.optim.Adam,
+        "lr" : 2.5e-5,
+        "device" : "cuda:1"
+    }
+
+    base_config.update(train_config)
+
+    trainer = Trainer(base_config)
 
     trainer.run(train_data_loader, None, None)

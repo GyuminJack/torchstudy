@@ -37,7 +37,7 @@ class PositionalEncoding(nn.Module):
 class Encoder(nn.Module):
     def __init__(self, input_dim, hid_dim, output_dim, n_layers, n_heads, pf_dim, dropout, max_length=256):
         super().__init__()
-
+        assert hid_dim % n_heads == 0, "n_head mis-matched"
         self.tok_embedding = nn.Embedding(input_dim, hid_dim)
         self.segment_embedding = nn.Embedding(2, hid_dim)
         self.pos_embedding = nn.Embedding(max_length, hid_dim)
@@ -48,8 +48,10 @@ class Encoder(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.scale = math.sqrt(hid_dim)
-        self.fc = nn.Linear(hid_dim, output_dim)
-        self.nsp_layer = nn.Linear(output_dim, 2)
+
+        self.nsp = nn.Linear(hid_dim, 2)
+        self.mlm = nn.Linear(hid_dim, output_dim)
+
 
     def forward(self, src, src_mask, segment):
 
@@ -68,9 +70,10 @@ class Encoder(nn.Module):
         for layer in self.layers:
             src = layer(src, src_mask)
 
-        src = self.fc(src)
-        nsp = self.nsp_layer(src[:, 0, :])
-        return nsp, src
+        nsp = self.nsp(src[:, 0, :])
+        mlm = self.mlm(src[:, 1:, :])
+
+        return nsp, mlm
 
 
 class EncoderLayer(nn.Module):
