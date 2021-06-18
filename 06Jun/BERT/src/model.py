@@ -73,8 +73,22 @@ class Encoder(nn.Module):
         nsp = self.nsp(src[:, 0, :])
         mlm = self.mlm(src[:, 1:, :])
 
-        return nsp, mlm
+        return src
+    
+    def encode(self, src, src_mask, segment):
+        batch_size = src.shape[0]
+        src_len = src.shape[1]
+        
+        pos = self.pos_embedding(torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(src.device))
+        segment = self.segment_embedding(segment)
 
+        src = self.tok_embedding(src) + pos + segment
+        src = self.dropout(src)
+
+        for layer in self.layers:
+            src = layer(src, src_mask)
+
+        return src
 
 class EncoderLayer(nn.Module):
     def __init__(self, hid_dim, n_heads, pf_dim, dropout):

@@ -104,7 +104,7 @@ if __name__ == "__main__":
         "output_dim": dataset.tokenizer.vocab_size,
         "n_layers" : 12,
         "n_heads" : 12,
-        "pf_dim" : 1024,
+        "pf_dim" : 2048,
         "max_length" : 256,
         "dropout" : 0.1
     }
@@ -119,5 +119,4 @@ if __name__ == "__main__":
     base_config.update(train_config)
 
     trainer = Trainer(base_config)
-
     trainer.run(train_data_loader, None, None)
