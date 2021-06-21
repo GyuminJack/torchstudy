@@ -49,13 +49,12 @@ class Trainer:
             mlm_labels = torch.index_select(input_tokens.reshape(-1), 0, indices)
 
             nsp_output, output = self.model(input_tokens, attention_masks, segments)
-            mlm_output = torch.index_select(output.reshape(-1, output.size(-1)), 0, indices)
-
+            # mlm_output = torch.index_select(output.reshape(-1, output.size(-1)), 0, indices)
+            # mlm_loss = self.loss(mlm_output, mlm_labels)
+            
             # flatten_output = output.reshape(-1, output.size(-1))
-
             nsp_loss = self.loss(nsp_output, nsp_labels)
-            mlm_loss = self.loss(mlm_output, mlm_labels)
-            # mlm_loss = 0
+            mlm_loss = 0
             total_loss = nsp_loss + mlm_loss
 
             total_loss.backward()
@@ -110,9 +109,9 @@ if __name__ == "__main__":
     }
 
     train_config = {
-        "epoch" : 100,
+        "epoch" : 500,
         "optimizer" : torch.optim.Adam,
-        "lr" : 2.5e-5,
+        "lr" : 2.5e-4,
         "device" : "cuda:1"
     }
 
