@@ -16,7 +16,7 @@ def load_tokenizer(tokenizer_path):
 
 
 class KoDataset_single_sentence(Dataset):
-    def __init__(self, vocab_txt_path, txt_path):
+    def __init__(self, vocab_txt_path, txt_path, *args, **kwargs):
         self.tokenizer = load_tokenizer(vocab_txt_path)
         self.txt_path = txt_path
 
@@ -139,21 +139,21 @@ class KoDataset_with_label_ynat(KoDataset_single_sentence):
     def __init__(self, *args, **kwargs):
         KoDataset_single_sentence.__init__(self, *args, **kwargs)
         self.label_dict = {"생활문화": 0, "사회": 1, "IT과학": 2, "스포츠": 3, "세계": 4, "정치": 5, "경제": 6}
-
+        self.max_seq_len = 256
+        
     def __getitem__(self, idx):
         label, raw_ko = linecache.getline(self.txt_path, idx + 1).strip().split("\t")
         return [label, raw_ko]
 
-    def collate_fn(self, batch, max_seq_len):
+    def collate_fn(self, batch):
         labels = []
         sents = []
         for label, raw_ko in batch:
             labels.append(self.label_dict[label])
             sents.append(raw_ko)
         labels = torch.Tensor(labels).long()
-        bert_batch = self.tokenizer(sents, padding=True, truncation=True, max_length=max_seq_len, return_tensors="pt")["input_ids"]
-        bert_batch = bert_batch.permute(1, 0)
-        return bert_batch, labels
+        inputs = self.tokenizer(sents, padding=True, truncation=True, max_length=self.max_seq_len, return_tensors="pt")
+        return inputs, labels
 
 
 if __name__ == "__main__":

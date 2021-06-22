@@ -73,7 +73,7 @@ class Encoder(nn.Module):
         nsp = self.nsp(src[:, 0, :])
         mlm = self.mlm(src[:, 1:, :])
 
-        return src
+        return nsp, mlm
     
     def encode(self, src, src_mask, segment):
         batch_size = src.shape[0]
