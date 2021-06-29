@@ -97,10 +97,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode")
     parser.add_argument("--corpus_path", default="/home/jack/torchstudy/06Jun/BERT/data/wpm/*.txt")
-    parser.add_argument("--save_name", default="default")
-    parser.add_argument("--vocab_size", default=32000)
-    parser.add_argument("--load_path", default="/home/jack/torchstudy/06Jun/BERT/vocabs/default_2021061415/")
-    parser.add_argument("--min_freq", default=5)
+    parser.add_argument("--save_name", default="peti_namu")
+    parser.add_argument("--vocab_size", default=12000)
+    parser.add_argument("--load_path", default="/home/jack/torchstudy/06Jun/BERT/vocabs/default_2021062318/")
+    parser.add_argument("--min_freq", default=3)
     args = parser.parse_args()
 
     if args.mode == "train":
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             tokenizer=tokenizer,
             corpus_files=[corpus_path],
             vocab_size=args.vocab_size,
-            limit_alphabet=2000,
+            limit_alphabet=6000,
             save_path=vocab_save_path,
             min_freq=args.min_freq,
         )

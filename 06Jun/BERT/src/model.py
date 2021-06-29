@@ -3,46 +3,39 @@ import torch.nn as nn
 from torch.autograd import Variable
 import math
 
-class MockEncoder(nn.Module):
-    def __init__(self, input_dim, hid_dim, output_dim):
+class PositionalEmbedding(nn.Module):
+    
+    def __init__(self, d_model, max_len=512):
         super().__init__()
-        self.tok_embedding = nn.Embedding(input_dim, hid_dim)
-        self.fc = nn.Linear(hid_dim, output_dim)
 
-    def forward(self, src, src_mask):
-        emb = self.tok_embedding(src)
-        fc = self.fc(emb)
-        return fc
-
-
-class PositionalEncoding(nn.Module):
-    "Implement the PE function."
-
-    def __init__(self, d_model, max_len=5000):
-        super(PositionalEncoding, self).__init__()
         # Compute the positional encodings once in log space.
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, d_model).float()
+        pe.require_grad = False
+
+        position = torch.arange(0, max_len).float().unsqueeze(1)
+        div_term = (torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model)).exp()
+
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
+
         pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + Variable(self.pe[:, : x.size(1)], requires_grad=False)
-        return x
-
+        return self.pe[:, :x.size(1)]
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, hid_dim, output_dim, n_layers, n_heads, pf_dim, dropout, max_length=256):
+    def __init__(self, input_dim, hid_dim, output_dim, n_layers, n_heads, pf_dim, dropout, max_length=256, pos_opt='dynamic'):
         super().__init__()
         assert hid_dim % n_heads == 0, "n_head mis-matched"
-        self.tok_embedding = nn.Embedding(input_dim, hid_dim)
-        self.segment_embedding = nn.Embedding(2, hid_dim)
-        self.pos_embedding = nn.Embedding(max_length, hid_dim)
-
-        # self.pos_embedding = PositionalEncoding(hid_dim)
+        self.tok_embedding = nn.Embedding(input_dim, hid_dim, padding_idx=0)
+        self.segment_embedding = nn.Embedding(3, hid_dim)
+        
+        self.pos_opt = pos_opt
+        if pos_opt == 'static':
+            self.pos_embedding = PositionalEmbedding(hid_dim, max_len = max_length)
+        else:
+            self.pos_embedding = nn.Embedding(max_length, hid_dim)
 
         self.layers = nn.ModuleList([EncoderLayer(hid_dim, n_heads, pf_dim, dropout) for _ in range(n_layers)])
 
@@ -61,28 +54,34 @@ class Encoder(nn.Module):
         batch_size = src.shape[0]
         src_len = src.shape[1]
         
-        pos = self.pos_embedding(torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(src.device))
+        # src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
+        if self.pos_opt != 'static':
+            pos = self.pos_embedding(torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(src.device))
+        else:
+            src = self.pos_embedding(src)
+        
         segment = self.segment_embedding(segment)
-
         src = self.tok_embedding(src) + pos + segment
         src = self.dropout(src)
-
+        
         for layer in self.layers:
             src = layer(src, src_mask)
 
         nsp = self.nsp(src[:, 0, :])
-        mlm = self.mlm(src[:, 1:, :])
+        mlm = self.mlm(src)
 
+        # print(mlm.shape)
         return nsp, mlm
     
     def encode(self, src, src_mask, segment):
         batch_size = src.shape[0]
         src_len = src.shape[1]
         
-        pos = self.pos_embedding(torch.arange(0, src_len).unsqueeze(0).repeat(batch_size, 1).to(src.device))
+        pos = self.pos_embedding(torch.arange(1, src_len+1).unsqueeze(0).repeat(batch_size, 1).to(src.device))
         segment = self.segment_embedding(segment)
 
-        src = self.tok_embedding(src) + pos + segment
+        src = (self.tok_embedding(src) * self.scale) + pos + segment
+        # src = self.dropout(self.pos_embedding((self.tok_embedding(src) * self.scale)))
         src = self.dropout(src)
 
         for layer in self.layers:
@@ -102,23 +101,16 @@ class EncoderLayer(nn.Module):
 
     def forward(self, src, src_mask):
 
-        # src = [batch size, src len, hid dim]
-        # src_mask = [batch size, 1, 1, src len]
+        _src = self.self_attn_layer_norm(src)
+        _src, _ = self.self_attention(_src, _src, _src, src_mask)
 
-        # self attention
-        _src, _ = self.self_attention(src, src, src, src_mask)
-
-        # dropout, residual connection and layer norm
-        src = self.self_attn_layer_norm(src + self.dropout(_src))
-
+        src = src + self.dropout(_src)
         # src = [batch size, src len, hid dim]
 
-        # positionwise feedforward
-        _src = self.positionwise_feedforward(src)
+        _src = self.ff_layer_norm(src)
+        src = src + self.positionwise_feedforward(_src)
 
-        # dropout, residual and layer norm
-        src = self.ff_layer_norm(src + self.dropout(_src))
-
+        src = self.dropout(src)
         # src = [batch size, src len, hid dim]
 
         return src
@@ -170,11 +162,12 @@ class MultiHeadAttentionLayer(nn.Module):
         # Query len = Key len = value_len
 
         energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
+
         # torch.einsum('bhqd,bhdk->bhqk', Q, K.permute(0, 1, 3, 2))
         # energy = [batch size, n heads, query len, key len]
 
         if mask is not None:
-            energy = energy.masked_fill(mask == 0, -1e10)
+            energy = energy.masked_fill(mask == 0, -1e9)
 
         attention = torch.softmax(energy, dim=-1)
 
@@ -204,10 +197,18 @@ class PositionwiseFeedforwardLayer(nn.Module):
         super().__init__()
         self.fc_1 = nn.Linear(hid_dim, pf_dim)
         self.fc_2 = nn.Linear(pf_dim, hid_dim)
-        self.gelu = torch.nn.GELU()
+        self.gelu = GELU()
         self.dropout = nn.Dropout(dropout)
-
+        
     def forward(self, x):
         x = self.dropout(self.gelu(self.fc_1(x)))
         x = self.fc_2(x)
         return x
+
+class GELU(nn.Module):
+    """
+    Paper Section 3.4, last paragraph notice that BERT used the GELU instead of RELU
+    """
+
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))

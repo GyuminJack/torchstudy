@@ -37,12 +37,12 @@ class KoDataset_single_sentence(Dataset):
 
 
 class KoDataset_nsp_mlm(Dataset):
-    def __init__(self, vocab_txt_path, txt_path, nsp_prob=0.5, mask_prob=0.15):
+    def __init__(self, vocab_txt_path, txt_path, nsp_prob=0.5, mask_prob=0.5):
         self.tokenizer = load_tokenizer(vocab_txt_path)
         self.txt_path = txt_path
         self.nsp_prob = nsp_prob
         self.mask_prob = mask_prob
-        self.max_length = 128
+        self.max_length = 256
         with open(self.txt_path, "r") as f:
             self._total_data = len(f.readlines())
 
@@ -53,16 +53,15 @@ class KoDataset_nsp_mlm(Dataset):
         now_ko = linecache.getline(self.txt_path, idx + 1).strip()
         if random.random() > self.nsp_prob:
             next_ko = linecache.getline(self.txt_path, idx + 2).strip()
-            nsp = torch.Tensor([1]).long()
+            nsp = 1
         else:
             rand_idx = random.randint(0, self._total_data)
-
             # 같은 문장이거나, 다음 문장일 경우 다시 뽑기
             while (rand_idx == idx+1) or (rand_idx == idx+2):
                 rand_idx = random.randint(0, self._total_data)
             next_ko = linecache.getline(self.txt_path, rand_idx).strip()
-            nsp = torch.Tensor([0]).long()
-
+            nsp = 0
+            
         seq = [now_ko, next_ko]
         input_ids = self.tokenizer.encode(seq, max_length=self.max_length, truncation=True, return_tensors="pt").squeeze()
         labels = input_ids.detach().clone()
@@ -71,14 +70,15 @@ class KoDataset_nsp_mlm(Dataset):
         mask_target = exclude_cls_sep[exclude_cls_sep != 0]
         pick_mask_index = sorted(np.random.choice(mask_target, math.ceil(len(mask_target) * self.mask_prob), replace=False))
         
-        segment_embedding = torch.zeros(input_ids.size()).long()
-        segment_embedding[(min((input_ids == 3).nonzero(as_tuple=True)[0])+1):] = 1
+        segment_embedding = torch.ones(input_ids.size()).long()
+        segment_embedding[(min((input_ids == 3).nonzero(as_tuple=True)[0])+1):] = 2
 
         mask_arr = torch.zeros(input_ids.size()).long()
         mask_arr[pick_mask_index] = 1
 
         input_ids[pick_mask_index] = int(self.tokenizer.mask_token_id)
-        mask_indices = (input_ids == 4).nonzero(as_tuple=True)[0]
+        # print(input_ids)
+        mask_indices = (input_ids == self.tokenizer.mask_token_id).nonzero(as_tuple=True)[0]
         
         def _change_masks_index(mask_index_list):
             mask_index_list = list(mask_index_list)
@@ -95,11 +95,14 @@ class KoDataset_nsp_mlm(Dataset):
             original_index = list(set(mask_index_list)-set(mask_index)-set(random_index))
 
             return mask_index, random_index, original_index
+        
+        _, _r, _o = _change_masks_index(mask_indices.tolist())
+        
+        for _ir in _r:
+            input_ids[_ir] = random.choice(range(5, self.tokenizer.vocab_size))
 
-        _m, _r, _o = _change_masks_index(mask_indices.tolist())
-        input_ids[_r] = random.choice(range(5, self.tokenizer.vocab_size))
-        if len(_o) > 0:
-            input_ids[_o] = labels[_o].item()
+        for _io in _o:
+            input_ids[_io] = labels[_io].item()
 
         return input_ids, segment_embedding, mask_arr, labels, nsp
 
