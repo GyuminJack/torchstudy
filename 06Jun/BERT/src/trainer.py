@@ -1,6 +1,7 @@
 from model import *
 from data import *
 import logging
+import time
 
 class WarmupConstantSchedule(torch.optim.lr_scheduler.LambdaLR):
     """ Linear warmup and then constant.
@@ -9,8 +10,8 @@ class WarmupConstantSchedule(torch.optim.lr_scheduler.LambdaLR):
     """
     def __init__(self, optimizer, d_model, warmup_steps):
         def lr_lambda(step):
-            if step == 0:
-                return 0
+            if step < warmup_steps:
+                return 1
             lrate = (d_model ** -0.5) * min(step ** -0.5, step * (warmup_steps ** -1.5))
             return lrate
         super(WarmupConstantSchedule, self).__init__(optimizer, lr_lambda)
@@ -26,14 +27,22 @@ class Trainer:
         pf_mid_dim = configs["pf_dim"]
         dropout_rate = configs["dropout"]
         max_length = configs["max_length"]
+        
         self.device = configs["device"]
         self.scheduler = configs['scheduler']
         self.epoch = configs["epoch"]
-
+        self.warmup_steps = configs["warmup_steps"]
         self.model = Encoder(input_size, self.hidden_dim, output_size, n_layers, n_heads, pf_mid_dim, dropout_rate)
+        
+        self.pretrained_model = configs['pretrained_model']
+        if self.pretrained_model is not None:
+            self.model = torch.load(self.pretrained_model).module
+        else:
+            self.initialize_weights(self.model)
+        
         self.model.to(self.device)
-        self.initialize_weights(self.model)
-
+        
+        
         self.model = nn.DataParallel(self.model, device_ids=[0, 1])
         self.set_optimizer(optimizer = configs['optimizer'], lr = configs['lr'], scheduler=self.scheduler)
         self.set_loss()
@@ -58,7 +67,7 @@ class Trainer:
     def set_optimizer(self, optimizer, lr, scheduler):
         if scheduler is not None:
             self.optimizer = optimizer(self.model.parameters(), lr=lr, betas=(0.9,0.999), weight_decay=0.01)
-            self.scheduler = scheduler(self.optimizer, d_model = self.hidden_dim, warmup_steps = 2000)
+            self.scheduler = scheduler(self.optimizer, d_model = self.hidden_dim, warmup_steps = self.warmup_steps)
         else:
             self.scheduler = None
             self.optimizer = optimizer(self.model.parameters(), lr=lr, weight_decay=0.01)
@@ -68,7 +77,7 @@ class Trainer:
         nsp_train_acc = 0
         mlm_train_acc = 0
         train_loss = 0
-        for batch_dict in iterator:
+        for m_batch, batch_dict in enumerate(iterator):
             self.optimizer.zero_grad()
             
             input_tokens = batch_dict["masked_inputs"].to(self.device)
@@ -116,11 +125,11 @@ class Trainer:
                 self.scheduler.step()
 
             # print(torch.argmax(nsp_output,1).sum(), (torch.argmax(nsp_output,1)==nsp_labels).sum())
-            # print(f"{nsp_loss.item():.3f}, {mlm_loss.item():.3f}, {total_loss.item():.3f}, {correct/len(nsp_labels)*100:.2f}, {mlm_acc*100:.2f}", end="\r")
-#            logging.debug(f"# of Total Mask token : {len(indices)}")
-#            logging.debug(f"Total Output Size (B, Seq, Out_vocab) : {output.size()}")
-#            logging.debug(f"Selected MLM output (# of Mask, Out_vocab) : {mlm_output.size()}")
-#            logging.debug(f"NSP output (B, 2) : {nsp_output.size()}")
+            print(f"{m_batch}/{len(iterator)}, {nsp_loss.item():.3f}, {mlm_loss.item():.3f}, {total_loss.item():.3f}, {correct/len(nsp_labels)*100:.2f}, {mlm_acc*100:.2f}", end="\r")
+            # logging.debug(f"# of Total Mask token : {len(indices)}")
+            # logging.debug(f"Total Output Size (B, Seq, Out_vocab) : {output.size()}")
+            # logging.debug(f"Selected MLM output (# of Mask, Out_vocab) : {mlm_output.size()}")
+            # logging.debug(f"NSP output (B, 2) : {nsp_output.size()}")
 
         return train_loss/len(iterator), nsp_train_acc/len(iterator)*100, mlm_train_acc/len(iterator)*100
     
@@ -162,11 +171,15 @@ class Trainer:
         return valid_loss/len(iterator), nsp_valid_acc/len(iterator)*100, mlm_valid_acc/len(iterator)*100
 
     def run(self, train_iter, valid_iter, test_iter):
+        best_valid_loss = float('inf')
         for i in range(self.epoch):
+            st = time.time()
             train_loss, train_nsp_acc, train_mlm_acc = self.train(train_iter)
-            valld_loss, nsp_valid_acc, valid_mlm_acc = self.valid(valid_iter)
-            print(f"TrainLoss : {train_loss:.5f}, Train_NSPAcc: {train_nsp_acc:.2f}%, Train_MLMAcc: {train_mlm_acc:.2f}%, ValidLoss : {valld_loss:.3f}, ValidNspAcc : {nsp_valid_acc:.2f}%, Valid_MLMAcc: {valid_mlm_acc:.2f}%", flush=True)
-        torch.save(self.model,'../models/tmp_saved.pt')
+            valid_loss, nsp_valid_acc, valid_mlm_acc = self.valid(valid_iter)
+            print(f"Time : {time.time()-st:.2f}s, TrainLoss : {train_loss:.5f}, Train_NSPAcc: {train_nsp_acc:.2f}%, Train_MLMAcc: {train_mlm_acc:.2f}%, ValidLoss : {valid_loss:.3f}, ValidNspAcc : {nsp_valid_acc:.2f}%, Valid_MLMAcc: {valid_mlm_acc:.2f}%", flush=True)
+            if best_valid_loss > valid_loss:
+                best_valid_loss = valid_loss
+                torch.save(self.model,'../models/best_petition_namu_{}.pt'.format(i))
        
 
 if __name__ == "__main__":
@@ -179,21 +192,21 @@ if __name__ == "__main__":
     except:
         pass
 
-    vocab_txt_path = "/home/jack/torchstudy/06Jun/BERT/vocabs/peti_namu_2021062409"
-    txt_path = "/home/jack/torchstudy/06Jun/BERT/data/corpus/petition_train.txt"
+    vocab_txt_path = "/home/jack/torchstudy/06Jun/BERT/vocabs/namu_2021060809"
+    txt_path = "/home/jack/torchstudy/06Jun/BERT/data/corpus/petition_namu.train.ko"
     valid_path = "/home/jack/torchstudy/06Jun/BERT/data/corpus/petition_valid.txt"
 
-    dataset = KoDataset_nsp_mlm(vocab_txt_path, txt_path)
-    train_data_loader = DataLoader(dataset, collate_fn=lambda batch: dataset.collate_fn(batch), batch_size=32, shuffle=True)
+    dataset = KoDataset_nsp_mlm(vocab_txt_path, txt_path, mask_prob=0.15)
+    train_data_loader = DataLoader(dataset, collate_fn=lambda batch: dataset.collate_fn(batch), batch_size=64, shuffle=True)
 
-    valid_dataset = KoDataset_nsp_mlm(vocab_txt_path, valid_path)
+    valid_dataset = KoDataset_nsp_mlm(vocab_txt_path, valid_path, mask_prob=0.15)
     valid_data_loader = DataLoader(valid_dataset, collate_fn=lambda batch: valid_dataset.collate_fn(batch), batch_size=32)
 
     base_config = {
         "input_dim": dataset.tokenizer.vocab_size,
         "d_model": 768,
         "output_dim": dataset.tokenizer.vocab_size,
-        "n_layers" : 8,
+        "n_layers" : 12,
         "n_heads" : 12,
         "pf_dim" : 1024,
         "max_length" : 256,
@@ -201,10 +214,12 @@ if __name__ == "__main__":
     }
 
     train_config = {
+        "pretrained_model" : "/home/jack/torchstudy/06Jun/BERT/models/best_petition_namu_1.pt",
         "epoch" : 500,
         "optimizer" : torch.optim.AdamW,
-        "scheduler" : None,
-        "lr" :  0.0001,
+        "scheduler" : WarmupConstantSchedule,
+        'warmup_steps' : 60000,
+        "lr" :  0.00005, #0.0001 -> 0.0005
         "device" : "cuda:0"
     }
 

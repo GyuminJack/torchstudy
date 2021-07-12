@@ -37,7 +37,7 @@ class KoDataset_single_sentence(Dataset):
 
 
 class KoDataset_nsp_mlm(Dataset):
-    def __init__(self, vocab_txt_path, txt_path, nsp_prob=0.5, mask_prob=0.5):
+    def __init__(self, vocab_txt_path, txt_path, nsp_prob=0.5, mask_prob=0.3):
         self.tokenizer = load_tokenizer(vocab_txt_path)
         self.txt_path = txt_path
         self.nsp_prob = nsp_prob
