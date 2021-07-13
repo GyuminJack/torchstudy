@@ -27,7 +27,8 @@ class KlueDataset_NER(Dataset):
                         'I-PS': 10,
                         'I-QT': 11,
                         'I-TI': 12,
-                        'O': 13}
+                        'O': 13
+                        }
         with open(self.txt_path, "r") as f:
             self._total_data = len(f.readlines())
 
@@ -42,11 +43,7 @@ class KlueDataset_NER(Dataset):
         return tokenized_text, bio_tensor
 
     def collate_fn(self, batch):
-        x = []
-        y = []
-        for _x, _y in batch:
-            x.append(_x)
-            y.append(_y)
+        x, y = zip(*batch)
         x = pad_sequence(x, batch_first=True, padding_value=0)
         y = pad_sequence(y, batch_first=True, padding_value=0)
         return x, y
