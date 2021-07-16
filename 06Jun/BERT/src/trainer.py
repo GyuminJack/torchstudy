@@ -2,6 +2,8 @@ from model import *
 from data import *
 import logging
 import time
+from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR, CosineAnnealingLR
+
 
 class WarmupConstantSchedule(torch.optim.lr_scheduler.LambdaLR):
     """ Linear warmup and then constant.
@@ -65,9 +67,15 @@ class Trainer:
         self.mlm_loss = torch.nn.CrossEntropyLoss(ignore_index=0)
 
     def set_optimizer(self, optimizer, lr, scheduler):
-        if scheduler is not None:
+        
+        if scheduler.__name__ == 'ReduceLROnPlateau':
+            self.optimizer = optimizer(self.model.parameters(), lr=lr, betas=(0.9,0.999), weight_decay=0.01)
+            self.scheduler = scheduler(self.optimizer, 'min')
+
+        elif scheduler.__name__ == 'WarmupConstantSchedule':
             self.optimizer = optimizer(self.model.parameters(), lr=lr, betas=(0.9,0.999), weight_decay=0.01)
             self.scheduler = scheduler(self.optimizer, d_model = self.hidden_dim, warmup_steps = self.warmup_steps)
+
         else:
             self.scheduler = None
             self.optimizer = optimizer(self.model.parameters(), lr=lr, weight_decay=0.01)
@@ -125,7 +133,7 @@ class Trainer:
                 self.scheduler.step()
 
             # print(torch.argmax(nsp_output,1).sum(), (torch.argmax(nsp_output,1)==nsp_labels).sum())
-            print(f"{m_batch}/{len(iterator)}, {nsp_loss.item():.3f}, {mlm_loss.item():.3f}, {total_loss.item():.3f}, {correct/len(nsp_labels)*100:.2f}, {mlm_acc*100:.2f}", end="\r")
+            # print(f"{m_batch}/{len(iterator)}, {nsp_loss.item():.3f}, {mlm_loss.item():.3f}, {total_loss.item():.3f}, {correct/len(nsp_labels)*100:.2f}, {mlm_acc*100:.2f}", end="\r")
             # logging.debug(f"# of Total Mask token : {len(indices)}")
             # logging.debug(f"Total Output Size (B, Seq, Out_vocab) : {output.size()}")
             # logging.debug(f"Selected MLM output (# of Mask, Out_vocab) : {mlm_output.size()}")
@@ -179,7 +187,7 @@ class Trainer:
             print(f"Time : {time.time()-st:.2f}s, TrainLoss : {train_loss:.5f}, Train_NSPAcc: {train_nsp_acc:.2f}%, Train_MLMAcc: {train_mlm_acc:.2f}%, ValidLoss : {valid_loss:.3f}, ValidNspAcc : {nsp_valid_acc:.2f}%, Valid_MLMAcc: {valid_mlm_acc:.2f}%", flush=True)
             if best_valid_loss > valid_loss:
                 best_valid_loss = valid_loss
-                torch.save(self.model,'../models/best_petition_namu_{}.pt'.format(i))
+                torch.save(self.model,'../models/best_petition_namu_{}.pt'.format(i+18))
        
 
 if __name__ == "__main__":
@@ -208,17 +216,17 @@ if __name__ == "__main__":
         "output_dim": dataset.tokenizer.vocab_size,
         "n_layers" : 12,
         "n_heads" : 12,
-        "pf_dim" : 1024,
+        "pf_dim" : 3096,
         "max_length" : 256,
         "dropout" : 0.1
     }
 
     train_config = {
-        "pretrained_model" : "/home/jack/torchstudy/06Jun/BERT/models/best_petition_namu_1.pt",
+        "pretrained_model" : "/home/jack/torchstudy/06Jun/BERT/models/best_petition_namu_17.pt",
         "epoch" : 500,
         "optimizer" : torch.optim.AdamW,
         "scheduler" : WarmupConstantSchedule,
-        'warmup_steps' : 60000,
+        'warmup_steps' : 30000,
         "lr" :  0.00005, #0.0001 -> 0.0005
         "device" : "cuda:0"
     }

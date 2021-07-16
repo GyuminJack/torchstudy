@@ -41,14 +41,18 @@ def get_token_labels(tokenizer, text:str, original_bio:list):
         seleceted_labels = cleaned_original_bio[start_index : start_index+token_length][0] # 가장 첫번째 bio 태그를 태그로 사용
         merged_bio.append(seleceted_labels)
         start_index += token_length
+    
     assert len(token_list) == len(merged_bio), "Size Mismatched"
+    if len(token_list) != len(merged_bio):
+        print("aDfasdklj;fjas")
     return token_list, merged_bio
 
-def save_ner_data(save_path, text:list, bio:list):
+def save_ner_data(save_path, tokenizer, text:list, bio:list):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     with open(save_path, "w") as f:
         for _text, _bio in zip(text, bio):
-            f.write(_text + "\t" + ",".join(_bio) + "\n")
+            _, new_bio = get_token_labels(tokenizer, _text, _bio)
+            f.write(_text + "\t" + ",".join(new_bio) + "\n")
 
 if __name__ == "__main__":
     import datetime
@@ -58,4 +62,4 @@ if __name__ == "__main__":
     tokenizer = load_tokenizer(tokenizer_path)
 
     save_path = "../data/{}/klue_ner_{}.dev".format(tokenizer_name, datetime.datetime.now().strftime("%Y%m%d"))
-    save_ner_data(save_path, corpus_text, corpus_bio)
+    save_ner_data(save_path, tokenizer, corpus_text, corpus_bio)
