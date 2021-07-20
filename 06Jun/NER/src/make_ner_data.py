@@ -43,8 +43,6 @@ def get_token_labels(tokenizer, text:str, original_bio:list):
         start_index += token_length
     
     assert len(token_list) == len(merged_bio), "Size Mismatched"
-    if len(token_list) != len(merged_bio):
-        print("aDfasdklj;fjas")
     return token_list, merged_bio
 
 def save_ner_data(save_path, tokenizer, text:list, bio:list):
