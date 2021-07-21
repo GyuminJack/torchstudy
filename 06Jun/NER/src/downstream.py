@@ -23,13 +23,18 @@ class BertNER(nn.Module):
         self.bert = bert
         self.position_wise_ff = nn.Linear(bert_hidden_size, num_classes)
         self.dropout = nn.Dropout(0.1)
+        self.lstm = nn.LSTM(bert_hidden_size, bert_hidden_size, batch_first=True)
         self.crf = CRF(num_tags=num_classes, batch_first=True)
 
     def forward(self, src, src_mask, segment, tags):
         src = self.bert.encode(src, src_mask, segment)
         last_encoder_layer = self.dropout(src)
+        last_encoder_layer, (hn, cn) = self.lstm(last_encoder_layer)
         emissions = self.position_wise_ff(last_encoder_layer)
-        log_likelihood, sequence_of_tags = self.crf(emissions, tags), self.crf.decode(emissions)
+        
+        label_mask = src_mask.squeeze(1).squeeze(1) != 0
+        
+        log_likelihood, sequence_of_tags = self.crf(emissions, tags, label_mask), self.crf.decode(emissions)
         return log_likelihood, sequence_of_tags
 
 def debug_write(batch, labels, pred, fp, tokenizer, reverse_bio):
@@ -61,10 +66,13 @@ def cal_f1_acc(label, pred):
     return _f1, _acc
 
 def train(iterator, model, optimizer, scheduler,  device, dataset, epoch):
+    
     model.to(device)
     ret_loss = 0
+    
     _acc = 0
-    fp = open(f"../log/ner_train/train_{epoch}.txt", "a")
+    model.train() 
+    # fp = open(f"../log/ner_train/train_{epoch}.txt", "a")
     for m_batch, (batch_dict, label) in enumerate(iterator):
         optimizer.zero_grad()
 
@@ -83,7 +91,7 @@ def train(iterator, model, optimizer, scheduler,  device, dataset, epoch):
         loss.backward()
         ret_loss += loss.item()
 
-        debug_write(input_tokens, label, sequence_of_tags, fp, dataset.tokenizer, dataset.reverse_bio_dict)
+        # debug_write(input_tokens, label, sequence_of_tags, fp, dataset.tokenizer, dataset.reverse_bio_dict)
         
         # Average of F1-score without 'O' tag
         mini_f1, mini_acc = cal_f1_acc(label, sequence_of_tags)
@@ -92,11 +100,11 @@ def train(iterator, model, optimizer, scheduler,  device, dataset, epoch):
         optimizer.step()
         if scheduler is not None:
             scheduler.step()
-        # print(f"{m_batch}/{len(iterator)}, {loss.item():.3f}, {mini_acc*100:.2f}, {mini_f1*100:.2f}", end="\r")
+        print(f"{m_batch}/{len(iterator)}, {loss.item():.3f}, {mini_acc*100:.2f}, {mini_f1*100:.2f}", end="\r")
 
     acc = _acc / len(iterator)
     epoch_loss = ret_loss / len(iterator)
-    fp.close()
+    # fp.close()
     return epoch_loss, acc * 100
 
 def evaluate_simple(iterator, model, device, dataset, epoch):
@@ -105,7 +113,7 @@ def evaluate_simple(iterator, model, device, dataset, epoch):
     model = model.to(device)
     acc = 0
     f1 = 0
-    fp = open(f"../log/ner_valid/valid_{epoch}.txt", "a")
+    # fp = open(f"../log/ner_valid/valid_{epoch}.txt", "a")
     with torch.no_grad():
         step = 0
         f1 = 0
@@ -124,12 +132,12 @@ def evaluate_simple(iterator, model, device, dataset, epoch):
 
             mini_f1, mini_acc = cal_f1_acc(label, sequence_of_tags)
 
-            debug_write(input_tokens, label, sequence_of_tags, fp, dataset.tokenizer, dataset.reverse_bio_dict)
+            # debug_write(input_tokens, label, sequence_of_tags, fp, dataset.tokenizer, dataset.reverse_bio_dict)
             f1 += mini_f1
             acc += mini_acc
             step += 1
 
-    fp.close()
+    # fp.close()
     return epoch_loss / len(iterator), acc/len(iterator)*100, f1/len(iterator)*100
 
 
@@ -142,7 +150,7 @@ if __name__ == "__main__":
 
     train_path = "/home/jack/torchstudy/06Jun/NER/data/namu_2021060809/klue_ner_20210715.train"
     train_dataset = KlueDataset_NER(vocab_txt_path, train_path)
-    train_data_loader = DataLoader(train_dataset, collate_fn= lambda batch: train_dataset.collate_fn(batch), batch_size=128, shuffle=True)
+    train_data_loader = DataLoader(train_dataset, collate_fn= lambda batch: train_dataset.collate_fn(batch), batch_size=64, shuffle=True)
     
     valid_path = "/home/jack/torchstudy/06Jun/NER/data/namu_2021060809/klue_ner_20210715.dev"
     valid_dataset = KlueDataset_NER(vocab_txt_path, valid_path)
@@ -151,9 +159,9 @@ if __name__ == "__main__":
     bert = torch.load('../../BERT/models/best_petition_namu_36.pt').module
     classifier = BertNER(bert, 768, len(train_dataset.bio_dict))
 
-    optimizer = torch.optim.AdamW(classifier.parameters(), lr = 0.00005, weight_decay = 0.01)
-    # scheduler = None
-    scheduler = WarmupConstantSchedule(optimizer, 768, 2000)
+    optimizer = torch.optim.AdamW(classifier.parameters(), lr = 0.00025, weight_decay = 0.01)
+    scheduler = None
+    # scheduler = WarmupConstantSchedule(optimizer, 768, 2000)
 
     loss_fn = torch.nn.CrossEntropyLoss()
     device = 'cuda:1'
@@ -164,5 +172,8 @@ if __name__ == "__main__":
         loss, acc, f1 = evaluate_simple(valid_data_loader, classifier, device, train_dataset, i)
         if f1 < best_valid_f1:
             best_valid_f1 = f1
-            torch.save(classifier, '../models/best_ner_36.pt')
+            if best_valid_f1 > 75:
+                torch.save(classifier, f'../models/best_ner_{i}.pt')
         print(f"{loss:.3f} / {acc:.3f} / {f1:.3f}                 ")
+
+

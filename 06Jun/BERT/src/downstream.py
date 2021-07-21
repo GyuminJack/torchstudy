@@ -21,9 +21,8 @@ class bertclassifier(nn.Module):
     def __init__(self, bert, hid_dim, out_dim):
         super().__init__()
         self.bert = bert
-        self.fc_1 = nn.Linear(hid_dim, 256)
-        self.relu = torch.nn.ReLU()
-        self.fc_2 = nn.Linear(256, out_dim)
+        self.dropout = nn.Dropout(0.1)
+        self.fc_1 = nn.Linear(hid_dim, out_dim)
 
     def forward(self, src, src_mask, segment):
         # batch_size = src.shape[0]
@@ -37,12 +36,13 @@ class bertclassifier(nn.Module):
 
         # self.bert.eval()
         src = self.bert.encode(src, src_mask, segment)
-        out = self.relu(self.fc_1(src[:, 0, :]))
-        out = self.fc_2(out)
+        src = self.dropout(src)
+        out = self.fc_1(src[:, 0, :])
         return out
 
 def train(iterator, model, optimizer, scheduler, loss_fn,  device):
     model.to(device)
+    model.train()
     ret_loss = 0
     for m_batch, (batch_dict, label) in enumerate(iterator):
         optimizer.zero_grad()
@@ -54,7 +54,6 @@ def train(iterator, model, optimizer, scheduler, loss_fn,  device):
 
         output = model(input_tokens, attention_masks, segments)
 
-        # flatten_output = output.reshape(-1, output.size(-1))
         ids = torch.argmax(output, dim=-1)
         mini_f1 = f1_score(label.reshape(-1).to('cpu'), ids.reshape(-1).to('cpu'), average='macro')
 
@@ -111,17 +110,17 @@ if __name__ == "__main__":
     valid_txt_path = "/home/jack/torchstudy/05May/ELMo/data/ynat/val_tokenized.ynat"
     
     train_dataset = KoDataset_with_label_ynat(vocab_txt_path, txt_path)
-    train_data_loader = DataLoader(train_dataset, collate_fn= train_dataset.collate_fn, batch_size=64)
+    train_data_loader = DataLoader(train_dataset, collate_fn= train_dataset.collate_fn, batch_size=32)
     
     valid_dataset = KoDataset_with_label_ynat(vocab_txt_path, valid_txt_path)
     valid_data_loader = DataLoader(valid_dataset, collate_fn= valid_dataset.collate_fn, batch_size=256)
 
-    bert = torch.load('../models/best_petition_namu_18.pt').module
+    bert = torch.load('../models/best_petition_namu_4.pt').module
     classifier = bertclassifier(bert, 768, 7)
 
-    optimizer = torch.optim.AdamW(classifier.parameters(), lr = 0.0005, weight_decay = 0.01)
-    # scheduler = None
-    scheduler = WarmupConstantSchedule(optimizer, 768, len(train_data_loader) * 5)
+    optimizer = torch.optim.Adam(classifier.parameters(), lr = 0.00025, weight_decay = 0.01)
+    scheduler = None
+    # scheduler = WarmupConstantSchedule(optimizer, 768, len(train_data_loader) * 1)
 
     loss_fn = torch.nn.CrossEntropyLoss()
     device = 'cuda:1'
